@@ -1,5 +1,4 @@
 #include <lvgl.h>
-#include <DHT20.h>
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <WiFi.h>
@@ -132,9 +131,19 @@ void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data) {
 // ====================== Chart/Serien/Arrays ======================
 static lv_chart_series_t* s_prices = nullptr;   // PRIMARY_Y
 static lv_chart_series_t* s_power  = nullptr;   // SECONDARY_Y
-static lv_coord_t strompreise_array[24];
-static lv_coord_t stromverbrauch_array[24];
+
+static lv_chart_series_t* s_verbrauch = nullptr; // PRIMARY_Y
+static lv_chart_series_t* s_einspeisung = nullptr; // PRIMARY_Y
+
+static lv_coord_t strompreise_array[96];
+static lv_coord_t stromverbrauch_array[96];
+
+static lv_coord_t stromverbrauch60min_array[60];
+static lv_coord_t stromeinspeisung60min_array[60];
+
 static lv_coord_t y2_max = 1000; // Start-Range 0..1000 (Wh)
+static lv_coord_t y2_maxVerbrauch = 1000; // Start-Range 0..1000 (Wh)
+
 static inline lv_coord_t round_up_step(lv_coord_t x, lv_coord_t step) { return ((x + step - 1) / step) * step; }
 
 // ====================== Next-Button Callback ======================
@@ -150,11 +159,15 @@ static void on_next(lv_event_t* e) {
 
 // ====================== Datenpuffer (Task -> UI) ======================
 typedef struct {
-  lv_coord_t prices[24];
-  lv_coord_t cons[24];
+  lv_coord_t prices15[96];
+  lv_coord_t verbrauch15[96];
+  lv_coord_t vmaxGrafik; // max. Verbrauch in den letzten 60 Minuten
   float preisaktuell;
-  float verbrauch;
-  lv_coord_t vmax;
+  float verbrauch; // aktueller Verbrauch in Watt
+  
+  lv_coord_t verbrauch60min[60];
+  lv_coord_t vmaxGrafikverbrauch; // max. Verbrauch in den letzten 60 Minuten
+  
   bool ok; // mind. etwas erfolgreich?
 } data_packet_t;
 
@@ -166,54 +179,69 @@ static portMUX_TYPE g_mux = portMUX_INITIALIZER_UNLOCKED;
 const uint32_t UPDATE_MS = 10000;
 
 void data_task(void* pv) {
-  for (;;) {
+for (;;) {
     // WLAN sicherstellen
     ensureWifi();
     if (WiFi.status() != WL_CONNECTED) {
-      vTaskDelay(pdMS_TO_TICKS(1000));
-      continue;
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        continue;
     }
 
     data_packet_t local{}; local.ok = false;
-    // ---- Preise ----
-    for (int i = 0; i < 24; ++i) {
-      char name[32]; snprintf(name, sizeof(name), "Strompreis_%02d", i);
-      float v;
-      if (oh_get_float(String(name), v)) {
-        local.prices[i] = (lv_coord_t)v;
+    // Item stromtagesverbrauch_15 gibt  96 Werte als Array zurück jeder 15 Minuten ein Wert ab 00:00
+    int count = 0;
+    float* arr = openHABClient.getItemStateFloatArray("stromtagesverbrauch_15", count);
+    Serial.println("Count: " + String(count));
+    if (arr && count == 96) {
+        local.vmaxGrafik = 0;
+
+        for (int i = 0; i < 96; ++i) {
+            local.verbrauch15[i] = round_up_step(arr[i] * 1000.0 * 4, 10); // kWh -> Wh *4 da 15min
+            if (local.verbrauch15[i] > local.vmaxGrafik) local.vmaxGrafik = local.verbrauch15[i];
+        }
         local.ok = true;
-      }
-      net_yield(); // kleine Pause
+    }
+    //  Item Strompreisverlauf gibt  96 Werte als Array zurück jeder 15 Minuten ein Wert ab 00:00
+    count = 0;
+    arr = openHABClient.getItemStateFloatArray("Strompreisverlauf", count);
+    Serial.println("Count: " + String(count));
+    if (arr && count == 96) {
+        for (int i = 0; i < 96; ++i) local.prices15[i] = round_up_step(arr[i], 1); // Eurocent
+        local.ok = true;
     }
 
-    // ---- Verbrauch (kWh -> Wh) ----
-    lv_coord_t vmax = 0;
-    for (int i = 0; i < 24; ++i) {
-      char name[40]; snprintf(name, sizeof(name), "kwverbrauchStunde_%02d", i);
-      float kwh;
-      if (oh_get_float(String(name), kwh)) {
-        local.cons[i] = (lv_coord_t)(kwh * 1000.0f);
-        if (local.cons[i] > vmax) vmax = local.cons[i];
+    // Imt stromtagesverbrauch_60min gibt  60 Werte der letzen 60 Minuten zurück
+    count = 0;
+    arr = openHABClient.getItemStateFloatArray("stromstundenverbrauch", count);
+    Serial.println("Count: " + String(count));
+    if (arr && count == 60) {
+        local.vmaxGrafikverbrauch = 0;
+        for (int i = 0; i < 60; ++i) {
+            local.verbrauch60min[i] = arr[i]; // kWh -> Wh
+            if (abs(local.verbrauch60min[i]) > local.vmaxGrafikverbrauch) local.vmaxGrafikverbrauch = abs(local.verbrauch60min[i]);
+        }
         local.ok = true;
-      }
-      net_yield();
     }
-    local.vmax = vmax;
+
+     net_yield();
 
     // ---- aktuelle Labels ----
     float t;
+    
     if (oh_get_float("Spotpreis_Current", t)) { local.preisaktuell = t; local.ok = true; }
-    net_yield();
-    if (oh_get_float("kwverbraucht", t))     { local.verbrauch    = t; local.ok = true; }
+    if (oh_get_float("kwverbraucht", t)) { local.verbrauch = t * 1000.0; local.ok = true; }
+    
 
-    // ---- Übergabe an UI (nur wenn zumindest etwas ok) ----
+     net_yield();
+      // ---- Übergabe an UI (nur wenn zumindest etwas ok) ----
     taskENTER_CRITICAL(&g_mux);
-      g_data = local;
-      g_data_ready = local.ok;
+        g_data = local;
+        g_data_ready = local.ok;
     taskEXIT_CRITICAL(&g_mux);
 
-    vTaskDelay(pdMS_TO_TICKS(UPDATE_MS));
-  }
+    // Warte 30 Sekunden bis zum nächsten Durchlauf
+    vTaskDelay(pdMS_TO_TICKS(30000));
+}
 }
 
 // ====================== v9: Tick-Callback auf millis (falls nötig) ======================
@@ -270,11 +298,19 @@ void setup() {
   lv_timer_handler();
 
   // Chart
-  lv_chart_set_point_count(uic_Grafik, 24);
+  lv_chart_set_point_count(uic_Grafik, 96);
   s_prices = lv_chart_add_series(uic_Grafik, lv_color_hex(0x880404), LV_CHART_AXIS_PRIMARY_Y);
   s_power  = lv_chart_add_series(uic_Grafik, lv_color_hex(0x0000FF), LV_CHART_AXIS_SECONDARY_Y);
+  
+s_verbrauch = lv_chart_add_series(uic_Grafikverbrauch, lv_color_hex(0xFF0000), LV_CHART_AXIS_PRIMARY_Y); // Rot für Verbrauch
+s_einspeisung = lv_chart_add_series(uic_Grafikverbrauch, lv_color_hex(0x00FF00), LV_CHART_AXIS_PRIMARY_Y); // Grün für Einspeisung
+
   lv_chart_set_ext_y_array(uic_Grafik, s_prices, strompreise_array);
   lv_chart_set_ext_y_array(uic_Grafik, s_power,  stromverbrauch_array);
+
+    lv_chart_set_ext_y_array(uic_Grafikverbrauch, s_verbrauch, stromverbrauch60min_array);
+    lv_chart_set_ext_y_array(uic_Grafikverbrauch, s_einspeisung, stromeinspeisung60min_array);
+
   lv_chart_set_range(uic_Grafik, LV_CHART_AXIS_SECONDARY_Y, 0, y2_max);
 
   // Next-Button Event (ui_btnNext oder ui_btn_Next)
@@ -288,6 +324,10 @@ void setup() {
 
   // Hintergrund-Task (Core 0: WiFi-Stack)
   xTaskCreatePinnedToCore(data_task, "data_task", 12288, nullptr, 1, nullptr, 0);
+
+ 
+
+  // Ich brauch einen 
 
   Serial.println("Setup done");
 }
@@ -305,21 +345,55 @@ void loop() {
   if (have) {
     if (ui_lblip) lv_label_set_text(ui_lblip, WiFi.localIP().toString().c_str());
 
-    for (int i = 0; i < 24; ++i) {
-      strompreise_array[i]    = local.prices[i];
-      stromverbrauch_array[i] = local.cons[i];
+    for (int i = 0; i < 96; ++i) {
+      strompreise_array[i] = local.prices15[i];
+      stromverbrauch_array[i] = local.verbrauch15[i];
+    }
+  
+    for (int i = 0; i < 60; ++i) {
+
+        if (local.verbrauch60min[i] < 0)
+        {
+            stromeinspeisung60min_array[i]  = abs(local.verbrauch60min[i]);
+            stromverbrauch60min_array[i] = 0;
+        }
+        else
+        {
+            stromeinspeisung60min_array[i]  = 0;
+            stromverbrauch60min_array[i] = local.verbrauch60min[i];
+        }
+       
     }
 
-    if (local.vmax > y2_max) {
-      y2_max = round_up_step(local.vmax, 200);
+    
+
+    //Ermittele Maxfür die 2 Grafik
+    if (local.vmaxGrafikverbrauch > y2_maxVerbrauch) {
+      y2_maxVerbrauch = round_up_step(local.vmaxGrafikverbrauch, 200);
+      lv_chart_set_range(uic_Grafikverbrauch, LV_CHART_AXIS_PRIMARY_Y, 0, y2_maxVerbrauch);
+      lv_chart_set_range(uic_Grafikverbrauch, LV_CHART_AXIS_SECONDARY_Y, 0, y2_maxVerbrauch);
+
+    }
+
+}
+    lv_chart_refresh(uic_Grafikverbrauch);
+
+
+
+    if (local.vmaxGrafik > y2_max) {
+      y2_max = round_up_step(local.vmaxGrafik, 200);
       lv_chart_set_range(uic_Grafik, LV_CHART_AXIS_SECONDARY_Y, 0, y2_max);
     }
+   
+    
+  
 
     if (uic_aktuell)  lv_label_set_text(uic_aktuell,  String(local.verbrauch,   2).c_str());
     if (uic_Preis) lv_label_set_text(uic_Preis, String(local.preisaktuell, 2).c_str());
 
     lv_chart_refresh(uic_Grafik);
-  }
+
+
 
   delay(2); // reaktiv bleiben
 }
