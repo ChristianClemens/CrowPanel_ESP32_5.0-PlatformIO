@@ -58,7 +58,7 @@ class OpenHABClient {
       String payload = (httpCode == 200) ? http.getString() : "";
       http.end();
       // gebe die Payload per Serial aus mit dem itemName
-      Serial.println("Item: " + itemName + " State: " + payload);
+      //  Serial.println("Item: " + itemName + " State: " + payload);
             
 
       // Formatiere die Playlod um konvertriere zu Flaot

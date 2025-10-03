@@ -108,6 +108,10 @@ static inline void net_yield(uint32_t ms=15) { vTaskDelay(pdMS_TO_TICKS(ms)); }
 bool oh_get_float(const String& item, float& out) {
   for (int attempt = 0; attempt < 2; ++attempt) {
     float v = openHABClient.getItemStateFloat(item);
+    
+    //debug
+    Serial.println("Item: " + item + " Value: " + String(v));
+    
     if (!isnan(v)) { out = v; return true; }
     net_yield(30);
   }
@@ -164,10 +168,23 @@ typedef struct {
   lv_coord_t vmaxGrafik; // max. Verbrauch in den letzten 60 Minuten
   float preisaktuell;
   float verbrauch; // aktueller Verbrauch in Watt
-  
   lv_coord_t verbrauch60min[60];
   lv_coord_t vmaxGrafikverbrauch; // max. Verbrauch in den letzten 60 Minuten
   
+  //Stromtageskosten
+  float stromtageskosten = 0.0;
+  //Aktueller Verbrauch in Watt
+  float aktuellerVerbrauch = 0.0;
+  
+  float stromeinspeisung = 0.0; // in KW
+  float stromverbrauch = 0.0; // in KW
+
+  float warmwassergrad = 0.0; // in Grad Celsius
+  String WPTag = ""; // Heizprogramm der Wärmepumpe für heute
+  String WPNacht = ""; // Heizprogramm der Wärmepumpe für die Nacht
+  String WPStatus = ""; // Aktives Heizprogramm der Wärmepumpe für heute
+  float WPWatt = 0.0; // Aktives Heizprogramm der Wärmepumpe für die Nacht
+
   bool ok; // mind. etwas erfolgreich?
 } data_packet_t;
 
@@ -228,9 +245,112 @@ for (;;) {
     // ---- aktuelle Labels ----
     float t;
     
-    if (oh_get_float("Spotpreis_Current", t)) { local.preisaktuell = t; local.ok = true; }
-    if (oh_get_float("kwverbraucht", t)) { local.verbrauch = t * 1000.0; local.ok = true; }
-    
+    if (oh_get_float("Strompreis_Current", t)) { 
+        local.preisaktuell = t; 
+        local.ok = true; 
+     
+    } else {
+        Serial.println("Failed to fetch Strompreis_Current");
+    }
+
+    if (oh_get_float("kwverbraucht", t)) { 
+        local.verbrauch = t;
+        local.stromverbrauch = t; 
+        local.ok = true; 
+//    Serial.println("Fetched kwverbraucht: " + String(t));
+    } else {
+        Serial.println("Failed to fetch kwverbraucht");
+    }
+
+
+  //  float stromtageskosten = 0.0; Item Stromtageskosten
+    if (oh_get_float("Stromtageskosten", t)) { 
+        local.stromtageskosten = t; 
+        local.ok = true;
+    } 
+    else {
+        Serial.println("Failed to fetch Stromtageskosten");
+    }
+
+  //  float aktuellerVerbrauch = 0.0; Item  StromAktuell
+    if (oh_get_float("StromAktuell", t)) { 
+        local.aktuellerVerbrauch = t; 
+        local.ok = true;
+    } 
+    else {
+        Serial.println("Failed to fetch StromAktuell");
+    }
+
+
+  //  float stromeinspeisung = 0.0; // in KW kwproduziert
+    if (oh_get_float("kwproduziert", t)) { 
+        local.stromeinspeisung = t; 
+        local.ok = true;
+    } 
+    else {
+        Serial.println("Failed to fetch kwproduziert");
+    }
+
+
+// float warmwassergrad = 0.0; // in Grad Celsius Item Temp_Sensor6
+    if (oh_get_float("Temp_Sensor6", t)) { 
+        local.warmwassergrad = t; 
+        local.ok = true;
+    } 
+    else {
+        Serial.println("Failed to fetch Temp_Sensor6");
+    }
+
+  // String WPTag = ""; // Heizprogramm der Wärmepumpe für heute Item CheapestTimes_Day
+    {
+        String s = openHABClient.getItemState("CheapestTimes_Day");
+        if (s.length() > 0) { local.WPTag = s; local.ok = true; } 
+        else {
+            Serial.println("Failed to fetch CheapestTimes_Day");
+        }
+    }
+  // String WPNacht = ""; // Heizprogramm der Wärmepumpe für die Nacht
+    {
+        String s = openHABClient.getItemState("CheapestTimes_Night");
+        if (s.length() > 0) { local.WPNacht = s; local.ok = true; } 
+        else {
+            Serial.println("Failed to fetch CheapestTimes_Night");
+        }
+    }
+
+  
+  // String WPStatus = ""; // Aktives Heizprogramm der Wärmepumpe für heute  Item Relay2
+    {
+        String s = openHABClient.getItemState("Relay2");
+        if (s.length() > 0) {
+            if (s == "ON")
+            {
+                local.WPStatus = "Abgeschaltet";
+                /* code */
+            }
+            else if (s == "OFF")
+            {
+                local.WPStatus = "Eingeschaltet";
+            }
+            else
+            {
+                local.WPStatus = s; // Sonstige Zustände direkt übernehmen  
+
+            }
+
+            
+             local.ok = true; } 
+        else {
+            Serial.println("Failed to fetch Relay2");
+        }
+    }
+  // float WPWatt = 0.0; // Aktives Heizprogramm der Wärmepumpe für die Nacht ITEm kwwp
+    if (oh_get_float("WPAktuell", t)) { 
+        local.WPWatt = t; 
+        local.ok = true;
+    } else {
+        Serial.println("Failed to fetch kwwp");
+    }
 
      net_yield();
       // ---- Übergabe an UI (nur wenn zumindest etwas ok) ----
@@ -375,7 +495,7 @@ void loop() {
 
     }
 
-}
+
     lv_chart_refresh(uic_Grafikverbrauch);
 
 
@@ -385,15 +505,24 @@ void loop() {
       lv_chart_set_range(uic_Grafik, LV_CHART_AXIS_SECONDARY_Y, 0, y2_max);
     }
    
-    
+      lv_chart_refresh(uic_Grafik);
+
   
-
-    if (uic_aktuell)  lv_label_set_text(uic_aktuell,  String(local.verbrauch,   2).c_str());
-    if (uic_Preis) lv_label_set_text(uic_Preis, String(local.preisaktuell, 2).c_str());
-
-    lv_chart_refresh(uic_Grafik);
-
-
+   // Serial.println("Verbrauch: " + String(local.verbrauch) + " Preis: " + String(local.preisaktuell));
+    
+    lv_label_set_text(uic_kwheute,  String(local.verbrauch, 2).c_str());
+    lv_label_set_text(uic_Preis, String(local.preisaktuell, 2).c_str());
+    lv_label_set_text(uic_aktuell, String(local.aktuellerVerbrauch, 0).c_str());
+    lv_label_set_text(uic_tageskosten, String(local.stromtageskosten, 2).c_str());
+    lv_label_set_text(uic_kwproduziert, String(local.stromeinspeisung, 2).c_str());
+    lv_label_set_text(uic_kwverbraucht, String(local.stromverbrauch, 2).c_str());
+    lv_label_set_text(uic_TempWarmwasser, String(local.warmwassergrad, 2).c_str());
+    lv_label_set_text(uic_WPTag, local.WPTag.c_str());  
+    lv_label_set_text(uic_WPNacht, local.WPNacht.c_str());
+    lv_label_set_text(uic_WPStatus, local.WPStatus.c_str());
+    lv_label_set_text(uic_WPWatt, String(local.WPWatt, 2).c_str());
+  
+}
 
   delay(2); // reaktiv bleiben
 }
