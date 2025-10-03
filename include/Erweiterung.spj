@@ -3516,7 +3516,7 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  96,
+                  59,
                   -212
                 ],
                 "InheritedType": 7
@@ -3599,7 +3599,7 @@
               {
                 "nid": 1030,
                 "strtype": "LABEL/Text",
-                "strval": "Einges.",
+                "strval": "Einges. KW\t",
                 "InheritedType": 10
               },
               {
@@ -3674,8 +3674,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  106,
-                  -172
+                  61,
+                  -171
                 ],
                 "InheritedType": 7
               },
@@ -3757,7 +3757,7 @@
               {
                 "nid": 1030,
                 "strtype": "LABEL/Text",
-                "strval": "Verb.",
+                "strval": "Verb. KW",
                 "InheritedType": 10
               },
               {
@@ -3840,7 +3840,7 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  190,
+                  191,
                   -213
                 ],
                 "InheritedType": 7
@@ -4448,8 +4448,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  -540,
-                  -209
+                  -529,
+                  -213
                 ],
                 "InheritedType": 7
               },
@@ -4996,7 +4996,7 @@
                 "strtype": "OBJECT/Position",
                 "intarray": [
                   -86,
-                  -210
+                  -213
                 ],
                 "InheritedType": 7
               },
@@ -6126,7 +6126,7 @@
                 "strtype": "OBJECT/Position",
                 "intarray": [
                   -574,
-                  20
+                  23
                 ],
                 "InheritedType": 7
               },
@@ -6292,7 +6292,7 @@
                 "strtype": "OBJECT/Position",
                 "intarray": [
                   -139,
-                  -17
+                  -19
                 ],
                 "InheritedType": 7
               },
@@ -6565,7 +6565,7 @@
     "uiExportFolderPath": "C:\\Users\\c_cle\\Documents\\PlatformIO\\Projects\\CrowPanel_ESP32_5.0-PlatformIO\\src",
     "projectExportFolderPath": "C:\\Users\\c_cle\\Documents\\PlatformIO\\Projects\\CrowPanel_ESP32_5.0-PlatformIO\\src",
     "custom_variable_prefix": "uic",
-    "backup_cnt": 20,
+    "backup_cnt": 21,
     "autosave_cnt": 0,
     "group_color_cnt": 0,
     "lvgl_version": "8.3.11",

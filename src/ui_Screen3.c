@@ -53,8 +53,8 @@ void ui_Screen3_screen_init(void)
     ui_TempWarmwasser = lv_label_create(ui_Screen3);
     lv_obj_set_width(ui_TempWarmwasser, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_TempWarmwasser, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_TempWarmwasser, -540);
-    lv_obj_set_y(ui_TempWarmwasser, -209);
+    lv_obj_set_x(ui_TempWarmwasser, -529);
+    lv_obj_set_y(ui_TempWarmwasser, -213);
     lv_obj_set_align(ui_TempWarmwasser, LV_ALIGN_RIGHT_MID);
     lv_label_set_text(ui_TempWarmwasser, "0");
     lv_obj_set_style_text_font(ui_TempWarmwasser, &lv_font_montserrat_26, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -85,7 +85,7 @@ void ui_Screen3_screen_init(void)
     lv_obj_set_width(ui_Label14, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_Label14, LV_SIZE_CONTENT);    /// 1
     lv_obj_set_x(ui_Label14, -86);
-    lv_obj_set_y(ui_Label14, -210);
+    lv_obj_set_y(ui_Label14, -213);
     lv_obj_set_align(ui_Label14, LV_ALIGN_CENTER);
     lv_label_set_text(ui_Label14, "Grad");
     lv_obj_set_style_text_font(ui_Label14, &lv_font_montserrat_26, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -148,7 +148,7 @@ void ui_Screen3_screen_init(void)
     lv_obj_set_width(ui_WPWatt, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_WPWatt, LV_SIZE_CONTENT);    /// 1
     lv_obj_set_x(ui_WPWatt, -574);
-    lv_obj_set_y(ui_WPWatt, 20);
+    lv_obj_set_y(ui_WPWatt, 23);
     lv_obj_set_align(ui_WPWatt, LV_ALIGN_RIGHT_MID);
     lv_label_set_text(ui_WPWatt, "0");
     lv_obj_set_style_text_font(ui_WPWatt, &lv_font_montserrat_26, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -157,7 +157,7 @@ void ui_Screen3_screen_init(void)
     lv_obj_set_width(ui_WPStatus, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_WPStatus, LV_SIZE_CONTENT);    /// 1
     lv_obj_set_x(ui_WPStatus, -139);
-    lv_obj_set_y(ui_WPStatus, -17);
+    lv_obj_set_y(ui_WPStatus, -19);
     lv_obj_set_align(ui_WPStatus, LV_ALIGN_CENTER);
     lv_label_set_text(ui_WPStatus, "WP Status:");
     lv_obj_set_style_text_font(ui_WPStatus, &lv_font_montserrat_26, LV_PART_MAIN | LV_STATE_DEFAULT);

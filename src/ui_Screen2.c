@@ -104,25 +104,25 @@ void ui_Screen2_screen_init(void)
     ui_Label10 = lv_label_create(ui_Screen2);
     lv_obj_set_width(ui_Label10, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_Label10, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_Label10, 96);
+    lv_obj_set_x(ui_Label10, 59);
     lv_obj_set_y(ui_Label10, -212);
     lv_obj_set_align(ui_Label10, LV_ALIGN_CENTER);
-    lv_label_set_text(ui_Label10, "Einges.");
+    lv_label_set_text(ui_Label10, "Einges. KW	");
     lv_obj_set_style_text_font(ui_Label10, &lv_font_montserrat_26, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_Label11 = lv_label_create(ui_Screen2);
     lv_obj_set_width(ui_Label11, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_Label11, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_Label11, 106);
-    lv_obj_set_y(ui_Label11, -172);
+    lv_obj_set_x(ui_Label11, 61);
+    lv_obj_set_y(ui_Label11, -171);
     lv_obj_set_align(ui_Label11, LV_ALIGN_CENTER);
-    lv_label_set_text(ui_Label11, "Verb.");
+    lv_label_set_text(ui_Label11, "Verb. KW");
     lv_obj_set_style_text_font(ui_Label11, &lv_font_montserrat_26, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_kwproduziert = lv_label_create(ui_Screen2);
     lv_obj_set_width(ui_kwproduziert, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_kwproduziert, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_kwproduziert, 190);
+    lv_obj_set_x(ui_kwproduziert, 191);
     lv_obj_set_y(ui_kwproduziert, -213);
     lv_obj_set_align(ui_kwproduziert, LV_ALIGN_CENTER);
     lv_label_set_text(ui_kwproduziert, "9999");
