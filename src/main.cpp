@@ -139,8 +139,11 @@ static lv_chart_series_t* s_power  = nullptr;   // SECONDARY_Y
 static lv_chart_series_t* s_verbrauch = nullptr; // PRIMARY_Y
 static lv_chart_series_t* s_einspeisung = nullptr; // PRIMARY_Y
 
+static lv_chart_series_t* s_warmwasser = nullptr; // PRIMARY_Y
+
 static lv_coord_t strompreise_array[96];
 static lv_coord_t stromverbrauch_array[96];
+static lv_coord_t warmwassergrad_array[96];
 
 static lv_coord_t stromverbrauch60min_array[60];
 static lv_coord_t stromeinspeisung60min_array[60];
@@ -180,6 +183,9 @@ typedef struct {
   float stromverbrauch = 0.0; // in KW
 
   float warmwassergrad = 0.0; // in Grad Celsius
+  lv_coord_t Warmwassergrad_array[96];
+
+
   String WPTag = ""; // Heizprogramm der Wärmepumpe für heute
   String WPNacht = ""; // Heizprogramm der Wärmepumpe für die Nacht
   String WPStatus = ""; // Aktives Heizprogramm der Wärmepumpe für heute
@@ -225,6 +231,12 @@ for (;;) {
     if (arr && count == 96) {
         for (int i = 0; i < 96; ++i) local.prices15[i] = round_up_step(arr[i], 1); // Eurocent
         local.ok = true;
+    }
+    count = 0;
+    arr = openHABClient.getItemStateFloatArray("tempHistoryItem", count);
+    Serial.println("Count: " + String(count));
+    if (arr && count == 96) {
+        for (int i = 0; i < 96; ++i) local.Warmwassergrad_array[i] = round_up_step(arr[i], 1); // Eurocent
     }
 
     // Imt stromtagesverbrauch_60min gibt  60 Werte der letzen 60 Minuten zurück
@@ -433,6 +445,9 @@ s_einspeisung = lv_chart_add_series(uic_Grafikverbrauch, lv_color_hex(0x00FF00),
 
   lv_chart_set_range(uic_Grafik, LV_CHART_AXIS_SECONDARY_Y, 0, y2_max);
 
+  s_warmwasser = lv_chart_add_series(uic_GrafikWW, lv_color_hex(0xFF0000), LV_CHART_AXIS_PRIMARY_Y); // Rot für Warmwasser
+  lv_chart_set_ext_y_array(uic_GrafikWW, s_warmwasser, warmwassergrad_array); // X-Achse automatisch
+
   // Next-Button Event (ui_btnNext oder ui_btn_Next)
   lv_obj_t* nextBtn = ui_btnNext ? ui_btnNext : ui_btn_Next;
   if (nextBtn) {
@@ -443,7 +458,7 @@ s_einspeisung = lv_chart_add_series(uic_Grafikverbrauch, lv_color_hex(0x00FF00),
   }
 
   // Hintergrund-Task (Core 0: WiFi-Stack)
-  xTaskCreatePinnedToCore(data_task, "data_task", 12288, nullptr, 1, nullptr, 0);
+  xTaskCreatePinnedToCore(data_task, "data_task", 12288, nullptr, 1, nullptr, 1);
 
  
 
@@ -468,6 +483,7 @@ void loop() {
     for (int i = 0; i < 96; ++i) {
       strompreise_array[i] = local.prices15[i];
       stromverbrauch_array[i] = local.verbrauch15[i];
+      warmwassergrad_array[i] = local.Warmwassergrad_array[i];
     }
   
     for (int i = 0; i < 60; ++i) {

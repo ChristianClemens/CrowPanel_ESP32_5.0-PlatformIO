@@ -5,6 +5,7 @@
 
 #include "ui.h"
 
+lv_obj_t * uic_GrafikWW;
 lv_obj_t * uic_WPStatus;
 lv_obj_t * uic_WPWatt;
 lv_obj_t * uic_WPNacht;
@@ -24,6 +25,7 @@ lv_obj_t * ui_WPTag = NULL;
 lv_obj_t * ui_WPNacht = NULL;
 lv_obj_t * ui_WPWatt = NULL;
 lv_obj_t * ui_WPStatus = NULL;
+lv_obj_t * ui_GrafikWW = NULL;
 // event funtions
 void ui_event_Next2(lv_event_t * e)
 {
@@ -147,7 +149,7 @@ void ui_Screen3_screen_init(void)
     ui_WPWatt = lv_label_create(ui_Screen3);
     lv_obj_set_width(ui_WPWatt, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_WPWatt, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_WPWatt, -574);
+    lv_obj_set_x(ui_WPWatt, -532);
     lv_obj_set_y(ui_WPWatt, 23);
     lv_obj_set_align(ui_WPWatt, LV_ALIGN_RIGHT_MID);
     lv_label_set_text(ui_WPWatt, "0");
@@ -162,12 +164,28 @@ void ui_Screen3_screen_init(void)
     lv_label_set_text(ui_WPStatus, "WP Status:");
     lv_obj_set_style_text_font(ui_WPStatus, &lv_font_montserrat_26, LV_PART_MAIN | LV_STATE_DEFAULT);
 
+    ui_GrafikWW = lv_chart_create(ui_Screen3);
+    lv_obj_set_width(ui_GrafikWW, 691);
+    lv_obj_set_height(ui_GrafikWW, 145);
+    lv_obj_set_x(ui_GrafikWW, -10);
+    lv_obj_set_y(ui_GrafikWW, 128);
+    lv_obj_set_align(ui_GrafikWW, LV_ALIGN_CENTER);
+    lv_chart_set_type(ui_GrafikWW, LV_CHART_TYPE_LINE);
+    lv_chart_set_point_count(ui_GrafikWW, 96);
+    lv_chart_set_range(ui_GrafikWW, LV_CHART_AXIS_PRIMARY_Y, 0, 80);
+    lv_chart_set_range(ui_GrafikWW, LV_CHART_AXIS_SECONDARY_Y, 0, 80);
+    lv_chart_set_div_line_count(ui_GrafikWW, 8, 24);
+    lv_chart_set_axis_tick(ui_GrafikWW, LV_CHART_AXIS_PRIMARY_X, 10, 6, 24, 1, true, 80);
+    lv_chart_set_axis_tick(ui_GrafikWW, LV_CHART_AXIS_PRIMARY_Y, 10, 5, 5, 2, true, 80);
+    lv_chart_set_axis_tick(ui_GrafikWW, LV_CHART_AXIS_SECONDARY_Y, 10, 5, 5, 2, true, 25);
+
     lv_obj_add_event_cb(ui_Next2, ui_event_Next2, LV_EVENT_ALL, NULL);
     uic_TempWarmwasser = ui_TempWarmwasser;
     uic_WPTag = ui_WPTag;
     uic_WPNacht = ui_WPNacht;
     uic_WPWatt = ui_WPWatt;
     uic_WPStatus = ui_WPStatus;
+    uic_GrafikWW = ui_GrafikWW;
 
 }
 
@@ -195,5 +213,7 @@ void ui_Screen3_screen_destroy(void)
     ui_WPWatt = NULL;
     uic_WPStatus = NULL;
     ui_WPStatus = NULL;
+    uic_GrafikWW = NULL;
+    ui_GrafikWW = NULL;
 
 }

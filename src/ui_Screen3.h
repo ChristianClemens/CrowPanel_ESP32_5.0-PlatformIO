@@ -28,12 +28,14 @@ extern lv_obj_t * ui_WPTag;
 extern lv_obj_t * ui_WPNacht;
 extern lv_obj_t * ui_WPWatt;
 extern lv_obj_t * ui_WPStatus;
+extern lv_obj_t * ui_GrafikWW;
 // CUSTOM VARIABLES
 extern lv_obj_t * uic_TempWarmwasser;
 extern lv_obj_t * uic_WPTag;
 extern lv_obj_t * uic_WPNacht;
 extern lv_obj_t * uic_WPWatt;
 extern lv_obj_t * uic_WPStatus;
+extern lv_obj_t * uic_GrafikWW;
 
 #ifdef __cplusplus
 } /*extern "C"*/
