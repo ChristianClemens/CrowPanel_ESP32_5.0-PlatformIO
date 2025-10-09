@@ -55,6 +55,7 @@ LGFX lcd;
 const char* ssid = "WLANC_IOT";
 const char* password = "clemensiot!";
 #include "touch.h"
+#include <esp_wifi.h>
 
 // ====================== LVGL Display Driver ======================
 static uint32_t screenWidth, screenHeight;
@@ -93,12 +94,49 @@ extern lv_obj_t* uic_aktuell;
 extern lv_obj_t* uic_Preis;
 
 // ====================== Helfer ======================
-void ensureWifi() {
-  if (WiFi.status() == WL_CONNECTED) return;
+//void ensureWifi() {
+//  if (WiFi.status() == WL_CONNECTED) return;
+//  WiFi.mode(WIFI_STA);
+//  WiFi.begin(ssid, password);
+//  uint32_t t0 = millis();
+//  while (WiFi.status() != WL_CONNECTED && (millis() - t0) < 15000) { delay(300); }
+// }
+
+void onWiFiEvent(WiFiEvent_t event) {
+  switch (event) {
+    case ARDUINO_EVENT_WIFI_STA_START:
+     WiFi.begin(ssid, password);
+      break;
+    case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+      Serial.printf("[WiFi] Verbunden: %s\n", WiFi.localIP().toString().c_str());
+      break;
+    case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+      Serial.println("[WiFi] Verbindung verloren → Reconnect...");
+      WiFi.disconnect(true, false);
+      WiFi.begin(ssid, password);
+      break;
+    default:
+      break;
+  }
+}
+
+// ---- Stabiles WLAN-Setup ----
+void wifi_init_stable() {
+  WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);                // keine Stromspar-Disconnects
+  WiFi.setHostname("esp32s3-panel");
+  WiFi.setTxPower(WIFI_POWER_19_5dBm); // volle Leistung
+
+  wifi_country_t country = {"DE", 1, 13, WIFI_COUNTRY_POLICY_MANUAL};
+  esp_wifi_set_country(&country);
+
+  WiFi.onEvent(onWiFiEvent);
   WiFi.begin(ssid, password);
-  uint32_t t0 = millis();
-  while (WiFi.status() != WL_CONNECTED && (millis() - t0) < 15000) { delay(300); }
+
+  wl_status_t res = (wl_status_t)WiFi.waitForConnectResult(8000);
+  if (res != WL_CONNECTED)
+    Serial.printf("[WiFi] Erstverbindung fehlgeschlagen (%d)\n", res);
 }
 
 // Kleine Pause zwischen HTTP-Calls, damit der Stack atmen kann
@@ -151,6 +189,8 @@ static lv_coord_t stromeinspeisung60min_array[60];
 static lv_coord_t y2_max = 1000; // Start-Range 0..1000 (Wh)
 static lv_coord_t y2_maxVerbrauch = 1000; // Start-Range 0..1000 (Wh)
 
+
+
 static inline lv_coord_t round_up_step(lv_coord_t x, lv_coord_t step) { return ((x + step - 1) / step) * step; }
 
 // ====================== Next-Button Callback ======================
@@ -182,6 +222,9 @@ typedef struct {
   float stromeinspeisung = 0.0; // in KW
   float stromverbrauch = 0.0; // in KW
 
+  int batteryLevel = 0; // in Prozent
+  float batteryVerbrauch = 0.0; // in Watt
+
   float warmwassergrad = 0.0; // in Grad Celsius
   lv_coord_t Warmwassergrad_array[96];
 
@@ -199,15 +242,17 @@ static data_packet_t g_data;
 static portMUX_TYPE g_mux = portMUX_INITIALIZER_UNLOCKED;
 
 // ====================== Hintergrund-Task: OpenHAB-Fetch ======================
-const uint32_t UPDATE_MS = 10000;
+
+const uint32_t UPDATE_MS_OK   = 30000;
+const uint32_t UPDATE_MS_FAIL = 10000;
 
 void data_task(void* pv) {
-for (;;) {
-    // WLAN sicherstellen
-    ensureWifi();
-    if (WiFi.status() != WL_CONNECTED) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        continue;
+  uint32_t nextWait = UPDATE_MS_OK;
+
+  for (;;) {
+    if (!WiFi.isConnected()) {
+      vTaskDelay(pdMS_TO_TICKS(1000));
+      continue;
     }
 
     data_packet_t local{}; local.ok = false;
@@ -235,8 +280,25 @@ for (;;) {
     count = 0;
     arr = openHABClient.getItemStateFloatArray("tempHistoryItem", count);
     Serial.println("Count: " + String(count));
-    if (arr && count == 96) {
-        for (int i = 0; i < 96; ++i) local.Warmwassergrad_array[i] = round_up_step(arr[i], 1); // Eurocent
+    if (arr && count > 0) {
+      int n = count;
+      if (n > 96) n = 96;
+
+      // Fülle vorhandene Werte
+      for (int i = 0; i < n; ++i) {
+        local.Warmwassergrad_array[i] = (lv_coord_t)arr[i]; // Grad Celsius (Ganzzahl)
+      }
+
+    
+      for (int i = n; i < 96; ++i) {
+        local.Warmwassergrad_array[i] = 0; // Rest mit 0 auffüllen
+      }
+
+      local.ok = true;
+    } else {
+      Serial.println("tempHistoryItem: keine oder ungueltige Daten");
+      // optional: mit 0 auffüllen
+      for (int i = 0; i < 96; ++i) local.Warmwassergrad_array[i] = 0;
     }
 
     // Imt stromtagesverbrauch_60min gibt  60 Werte der letzen 60 Minuten zurück
@@ -272,6 +334,23 @@ for (;;) {
 //    Serial.println("Fetched kwverbraucht: " + String(t));
     } else {
         Serial.println("Failed to fetch kwverbraucht");
+    }
+
+    // get Float Items
+    if (oh_get_float("SMA_Batt_SoC", t)) { 
+        local.batteryLevel = (int)t; 
+        local.ok = true;
+    } 
+    else {
+        Serial.println("Failed to fetch batteryLevel");
+    }
+
+    if (oh_get_float("SMA_Batt_Leistung", t)) { 
+        local.batteryVerbrauch = t; 
+        local.ok = true;
+    } 
+    else {
+        Serial.println("Failed to fetch batteryVerbrauch");
     }
 
 
@@ -387,7 +466,7 @@ void setup() {
   WiFi.setSleep(false);        // stabilere Latenz
   Wire.begin(19, 20);
 
-  ensureWifi();
+  wifi_init_stable();  // stabile WLAN-Initialisierung
 
   pinMode(38, OUTPUT);
   digitalWrite(38, LOW);
@@ -538,6 +617,99 @@ void loop() {
     lv_label_set_text(uic_WPStatus, local.WPStatus.c_str());
     lv_label_set_text(uic_WPWatt, String(local.WPWatt, 2).c_str());
   
+    // Setze in der Bar uic_Netz local aktuellen Verbrauch in Watt  als Value
+    if (uic_Netz)
+    {
+        
+      
+      lv_bar_set_value(uic_Netz, (int)local.aktuellerVerbrauch, LV_ANIM_ON);
+
+        if (local.aktuellerVerbrauch > 0)
+        {
+          // Dann rot
+          lv_obj_set_style_bg_grad_color(uic_Netz, lv_color_hex(0xFF0000), LV_PART_INDICATOR | LV_STATE_DEFAULT);
+       
+        }
+        else
+        {
+          // Dann grün
+          lv_obj_set_style_bg_grad_color(uic_Netz, lv_color_hex(0x00FF00), LV_PART_INDICATOR | LV_STATE_DEFAULT);
+        }
+        // Fülle uci_S4Netz mit dem aktuellen Verbrauch in Watt eränze die Einheit " W"
+        if (ui_Screen4 && uic_Netz)
+        {
+            lv_label_set_text_fmt(ui_S4Netz, "%d Watt", (int)local.aktuellerVerbrauch);
+        } 
+    }
+
+    if(uic_Bat)
+    {
+        
+         
+        if (uic_Bat)
+        {
+        if (local.batteryVerbrauch < 0)
+        { // Dann rot
+
+
+          lv_obj_set_style_bg_color(uic_Bat, lv_color_hex(0xFF0000), LV_PART_INDICATOR | LV_STATE_DEFAULT);
+          lv_bar_set_value(uic_Bat, (int)local.batteryVerbrauch * -1, LV_ANIM_ON);
+        }
+        else
+        { // Dann grün
+
+          lv_obj_set_style_bg_grad_color(uic_Bat, lv_color_hex(0x00FF00), LV_PART_INDICATOR | LV_STATE_DEFAULT);
+          lv_bar_set_value(uic_Bat, (int)local.batteryVerbrauch, LV_ANIM_ON);
+        }
+            lv_label_set_text_fmt(uic_s4Bat, "%d Watt", (int)local.batteryVerbrauch);
+        } 
+    }
+
+    if(uic_Bateriestatus)
+    {
+        lv_bar_set_value(uic_Bateriestatus, local.batteryLevel, LV_ANIM_ON);
+        // Fülle uci_Batterie mit dem aktuellen Batteriestand in Prozent
+        if (uic_Bateriestatus)
+        {
+            lv_label_set_text_fmt(uic_S4Bateriestatus, "%d %%", local.batteryLevel);
+        } 
+    }
+
+    
+
+
+    // wpWatt in der Bar uic_WP
+    if (uic_WPP)
+    {
+        lv_bar_set_value(uic_WPP, (int)local.WPWatt, LV_ANIM_ON);
+        // Fülle uci_S4WP mit dem aktuellen WP Watt
+        if (ui_Screen4 && uic_WPP)
+        {
+            lv_label_set_text_fmt(uic_s4WP, "%d Watt", (int)local.WPWatt);
+        }
+
+      }
+    // kwverbraucht in der Bar uic_Verbrauch
+    if (uic_Verbrauch)
+    {
+        lv_bar_set_value(uic_Verbrauch, (int)local.stromverbrauch, LV_ANIM_ON);
+        // Fülle uci_S4Verbrauch mit dem aktuellen Verbrauch in Watt
+        if (uic_Verbrauch)
+        {
+            lv_label_set_text_fmt(uic_s4Bezug, "%d KW", (int)local.stromverbrauch);
+        } 
+      }
+    // kvproduziert in der Bar uic_Einspeisung
+    if (uic_Eingespeist)
+    {
+        lv_bar_set_value(uic_Eingespeist, (int)local.stromeinspeisung, LV_ANIM_ON);
+     // Fülle uci_S4Einspeisung mit dem aktuellen Verbrauch in Watt
+        if (uic_Eingespeist)
+        {
+            lv_label_set_text_fmt(uic_S4Eing, "%d KW", (int)local.stromeinspeisung);
+        } 
+      }
+    
 }
 
   delay(2); // reaktiv bleiben
