@@ -7,7 +7,7 @@
 #include <LovyanGFX.hpp>
 #include <lgfx/v1/platforms/esp32s3/Panel_RGB.hpp>
 #include <lgfx/v1/platforms/esp32s3/Bus_RGB.hpp>
-#include "ui.h"
+#include "Anzeige/ui.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -179,7 +179,9 @@ static lv_chart_series_t* s_einspeisung = nullptr; // PRIMARY_Y
 
 static lv_chart_series_t* s_warmwasser = nullptr; // PRIMARY_Y
 
-static lv_coord_t strompreise_array[96];
+static lv_coord_t strompreiseHeute_array[96];
+static lv_coord_t strompreiseMorgen_array[96];
+
 static lv_coord_t stromverbrauch_array[96];
 static lv_coord_t warmwassergrad_array[96];
 
@@ -206,8 +208,12 @@ static void on_next(lv_event_t* e) {
 
 // ====================== Datenpuffer (Task -> UI) ======================
 typedef struct {
-  lv_coord_t prices15[96];
+
+  lv_coord_t strompreiseHeute[96];
+  lv_coord_t strompreiseMorgen[96];
+  lv_coord_t strompreisMax;
   lv_coord_t verbrauch15[96];
+
   lv_coord_t vmaxGrafik; // max. Verbrauch in den letzten 60 Minuten
   float preisaktuell;
   float verbrauch; // aktueller Verbrauch in Watt
@@ -255,6 +261,9 @@ void data_task(void* pv) {
       continue;
     }
 
+    // Kann ich feststellen welech Sceen aktuell angezeigt wird?
+    
+
     data_packet_t local{}; local.ok = false;
     // Item stromtagesverbrauch_15 gibt  96 Werte als Array zurück jeder 15 Minuten ein Wert ab 00:00
     int count = 0;
@@ -274,9 +283,16 @@ void data_task(void* pv) {
     arr = openHABClient.getItemStateFloatArray("Strompreisverlauf", count);
     Serial.println("Count: " + String(count));
     if (arr && count == 96) {
-        for (int i = 0; i < 96; ++i) local.prices15[i] = round_up_step(arr[i], 1); // Eurocent
+        for (int i = 0; i < 96; ++i) local.strompreiseHeute[i] = round_up_step(arr[i], 1); // Eurocent
         local.ok = true;
     }
+    arr = openHABClient.getItemStateFloatArray("Strompreisverlauf", count);
+    Serial.println("Count: " + String(count));
+    if (arr && count == 96) {
+        for (int i = 0; i < 96; ++i) local.strompreiseHeute[i] = round_up_step(arr[i], 1); // Eurocent
+        local.ok = true;
+    }
+    
     count = 0;
     arr = openHABClient.getItemStateFloatArray("tempHistoryItem", count);
     Serial.println("Count: " + String(count));
