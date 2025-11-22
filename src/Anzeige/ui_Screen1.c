@@ -5,17 +5,16 @@
 
 #include "ui.h"
 
+lv_obj_t * uic_Grafik;
 lv_obj_t * uic_tageskosten;
 lv_obj_t * uic_Label5;
 lv_obj_t * uic_Next;
 lv_obj_t * uic_kwheute;
 lv_obj_t * uic_Preis;
-lv_obj_t * uic_Grafik;
 lv_obj_t * uic_lblip;
 lv_obj_t * ui_Screen1 = NULL;
 lv_obj_t * ui_Label1 = NULL;
 lv_obj_t * ui_lblip = NULL;
-lv_obj_t * ui_Grafik = NULL;
 lv_obj_t * ui_Preis = NULL;
 lv_obj_t * ui_Label2 = NULL;
 lv_obj_t * ui_kwheute = NULL;
@@ -25,6 +24,7 @@ lv_obj_t * ui_Label7 = NULL;
 lv_obj_t * ui_Label8 = NULL;
 lv_obj_t * ui_tageskosten = NULL;
 lv_obj_t * ui_Label3 = NULL;
+lv_obj_t * ui_Grafik = NULL;
 // event funtions
 void ui_event_Next(lv_event_t * e)
 {
@@ -59,21 +59,6 @@ void ui_Screen1_screen_init(void)
     lv_obj_set_align(ui_lblip, LV_ALIGN_CENTER);
     lv_label_set_text(ui_lblip, "192.168.2.xxx");
     lv_obj_set_style_text_font(ui_lblip, &lv_font_montserrat_26, LV_PART_MAIN | LV_STATE_DEFAULT);
-
-    ui_Grafik = lv_chart_create(ui_Screen1);
-    lv_obj_set_width(ui_Grafik, 691);
-    lv_obj_set_height(ui_Grafik, 255);
-    lv_obj_set_x(ui_Grafik, 0);
-    lv_obj_set_y(ui_Grafik, 13);
-    lv_obj_set_align(ui_Grafik, LV_ALIGN_CENTER);
-    lv_chart_set_type(ui_Grafik, LV_CHART_TYPE_LINE);
-    lv_chart_set_point_count(ui_Grafik, 96);
-    lv_chart_set_range(ui_Grafik, LV_CHART_AXIS_PRIMARY_Y, -10, 30);
-    lv_chart_set_range(ui_Grafik, LV_CHART_AXIS_SECONDARY_Y, 0, 500);
-    lv_chart_set_div_line_count(ui_Grafik, 6, 24);
-    lv_chart_set_axis_tick(ui_Grafik, LV_CHART_AXIS_PRIMARY_X, 10, 6, 24, 1, true, 50);
-    lv_chart_set_axis_tick(ui_Grafik, LV_CHART_AXIS_PRIMARY_Y, 10, 5, 5, 2, true, 50);
-    lv_chart_set_axis_tick(ui_Grafik, LV_CHART_AXIS_SECONDARY_Y, 10, 5, 6, 2, true, 25);
 
     ui_Preis = lv_label_create(ui_Screen1);
     lv_obj_set_width(ui_Preis, LV_SIZE_CONTENT);   /// 1
@@ -158,14 +143,29 @@ void ui_Screen1_screen_init(void)
     lv_obj_set_align(ui_Label3, LV_ALIGN_CENTER);
     lv_label_set_text(ui_Label3, "EUR");
 
+    ui_Grafik = lv_chart_create(ui_Screen1);
+    lv_obj_set_width(ui_Grafik, 691);
+    lv_obj_set_height(ui_Grafik, 255);
+    lv_obj_set_x(ui_Grafik, 0);
+    lv_obj_set_y(ui_Grafik, 13);
+    lv_obj_set_align(ui_Grafik, LV_ALIGN_CENTER);
+    lv_chart_set_type(ui_Grafik, LV_CHART_TYPE_LINE);
+    lv_chart_set_point_count(ui_Grafik, 96);
+    lv_chart_set_range(ui_Grafik, LV_CHART_AXIS_PRIMARY_Y, -10, 30);
+    lv_chart_set_range(ui_Grafik, LV_CHART_AXIS_SECONDARY_Y, 0, 500);
+    lv_chart_set_div_line_count(ui_Grafik, 6, 24);
+    lv_chart_set_axis_tick(ui_Grafik, LV_CHART_AXIS_PRIMARY_X, 10, 6, 24, 1, true, 50);
+    lv_chart_set_axis_tick(ui_Grafik, LV_CHART_AXIS_PRIMARY_Y, 10, 5, 5, 2, true, 50);
+    lv_chart_set_axis_tick(ui_Grafik, LV_CHART_AXIS_SECONDARY_Y, 10, 5, 6, 2, true, 25);
+
     lv_obj_add_event_cb(ui_Next, ui_event_Next, LV_EVENT_ALL, NULL);
     uic_lblip = ui_lblip;
-    uic_Grafik = ui_Grafik;
     uic_Preis = ui_Preis;
     uic_kwheute = ui_kwheute;
     uic_Next = ui_Next;
     uic_Label5 = ui_Label5;
     uic_tageskosten = ui_tageskosten;
+    uic_Grafik = ui_Grafik;
 
 }
 
@@ -178,8 +178,6 @@ void ui_Screen1_screen_destroy(void)
     ui_Label1 = NULL;
     uic_lblip = NULL;
     ui_lblip = NULL;
-    uic_Grafik = NULL;
-    ui_Grafik = NULL;
     uic_Preis = NULL;
     ui_Preis = NULL;
     ui_Label2 = NULL;
@@ -194,5 +192,7 @@ void ui_Screen1_screen_destroy(void)
     uic_tageskosten = NULL;
     ui_tageskosten = NULL;
     ui_Label3 = NULL;
+    uic_Grafik = NULL;
+    ui_Grafik = NULL;
 
 }

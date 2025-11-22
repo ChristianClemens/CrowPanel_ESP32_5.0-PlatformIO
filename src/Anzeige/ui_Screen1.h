@@ -16,7 +16,6 @@ extern void ui_Screen1_screen_destroy(void);
 extern lv_obj_t * ui_Screen1;
 extern lv_obj_t * ui_Label1;
 extern lv_obj_t * ui_lblip;
-extern lv_obj_t * ui_Grafik;
 extern lv_obj_t * ui_Preis;
 extern lv_obj_t * ui_Label2;
 extern lv_obj_t * ui_kwheute;
@@ -27,14 +26,15 @@ extern lv_obj_t * ui_Label7;
 extern lv_obj_t * ui_Label8;
 extern lv_obj_t * ui_tageskosten;
 extern lv_obj_t * ui_Label3;
+extern lv_obj_t * ui_Grafik;
 // CUSTOM VARIABLES
 extern lv_obj_t * uic_lblip;
-extern lv_obj_t * uic_Grafik;
 extern lv_obj_t * uic_Preis;
 extern lv_obj_t * uic_kwheute;
 extern lv_obj_t * uic_Next;
 extern lv_obj_t * uic_Label5;
 extern lv_obj_t * uic_tageskosten;
+extern lv_obj_t * uic_Grafik;
 
 #ifdef __cplusplus
 } /*extern "C"*/

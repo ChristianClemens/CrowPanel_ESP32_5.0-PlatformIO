@@ -5,7 +5,7 @@
 
 #include "ui.h"
 
-lv_obj_t * uic_GrafikWW;
+lv_obj_t * uic_WPmanuel;
 lv_obj_t * uic_WPStatus;
 lv_obj_t * uic_WPWatt;
 lv_obj_t * uic_WPNacht;
@@ -25,7 +25,8 @@ lv_obj_t * ui_WPTag = NULL;
 lv_obj_t * ui_WPNacht = NULL;
 lv_obj_t * ui_WPWatt = NULL;
 lv_obj_t * ui_WPStatus = NULL;
-lv_obj_t * ui_GrafikWW = NULL;
+lv_obj_t * ui_WPmanuel = NULL;
+lv_obj_t * ui_Label25 = NULL;
 // event funtions
 void ui_event_Next2(lv_event_t * e)
 {
@@ -33,6 +34,15 @@ void ui_event_Next2(lv_event_t * e)
 
     if(event_code == LV_EVENT_CLICKED) {
         _ui_screen_change(&ui_Screen4, LV_SCR_LOAD_ANIM_FADE_ON, 500, 0, &ui_Screen4_screen_init);
+    }
+}
+
+void ui_event_WPmanuel(lv_event_t * e)
+{
+    lv_event_code_t event_code = lv_event_get_code(e);
+
+    if(event_code == LV_EVENT_CLICKED) {
+        (e);
     }
 }
 
@@ -164,28 +174,33 @@ void ui_Screen3_screen_init(void)
     lv_label_set_text(ui_WPStatus, "WP Status:");
     lv_obj_set_style_text_font(ui_WPStatus, &lv_font_montserrat_26, LV_PART_MAIN | LV_STATE_DEFAULT);
 
-    ui_GrafikWW = lv_chart_create(ui_Screen3);
-    lv_obj_set_width(ui_GrafikWW, 691);
-    lv_obj_set_height(ui_GrafikWW, 145);
-    lv_obj_set_x(ui_GrafikWW, -10);
-    lv_obj_set_y(ui_GrafikWW, 128);
-    lv_obj_set_align(ui_GrafikWW, LV_ALIGN_CENTER);
-    lv_chart_set_type(ui_GrafikWW, LV_CHART_TYPE_LINE);
-    lv_chart_set_point_count(ui_GrafikWW, 96);
-    lv_chart_set_range(ui_GrafikWW, LV_CHART_AXIS_PRIMARY_Y, 0, 80);
-    lv_chart_set_range(ui_GrafikWW, LV_CHART_AXIS_SECONDARY_Y, 0, 80);
-    lv_chart_set_div_line_count(ui_GrafikWW, 8, 24);
-    lv_chart_set_axis_tick(ui_GrafikWW, LV_CHART_AXIS_PRIMARY_X, 10, 6, 24, 1, true, 80);
-    lv_chart_set_axis_tick(ui_GrafikWW, LV_CHART_AXIS_PRIMARY_Y, 10, 5, 5, 2, true, 80);
-    lv_chart_set_axis_tick(ui_GrafikWW, LV_CHART_AXIS_SECONDARY_Y, 10, 5, 5, 2, true, 25);
+    ui_WPmanuel = lv_btn_create(ui_Screen3);
+    lv_obj_set_width(ui_WPmanuel, 200);
+    lv_obj_set_height(ui_WPmanuel, 50);
+    lv_obj_set_x(ui_WPmanuel, 69);
+    lv_obj_set_y(ui_WPmanuel, -204);
+    lv_obj_set_align(ui_WPmanuel, LV_ALIGN_CENTER);
+    lv_obj_add_flag(ui_WPmanuel, LV_OBJ_FLAG_SCROLL_ON_FOCUS);     /// Flags
+    lv_obj_clear_flag(ui_WPmanuel, LV_OBJ_FLAG_SCROLLABLE);      /// Flags
+    lv_obj_set_style_text_color(ui_WPmanuel, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_WPmanuel, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_Label25 = lv_label_create(ui_Screen3);
+    lv_obj_set_width(ui_Label25, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_Label25, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_Label25, 64);
+    lv_obj_set_y(ui_Label25, -205);
+    lv_obj_set_align(ui_Label25, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label25, "Waermepumpe ein");
 
     lv_obj_add_event_cb(ui_Next2, ui_event_Next2, LV_EVENT_ALL, NULL);
+    lv_obj_add_event_cb(ui_WPmanuel, ui_event_WPmanuel, LV_EVENT_ALL, NULL);
     uic_TempWarmwasser = ui_TempWarmwasser;
     uic_WPTag = ui_WPTag;
     uic_WPNacht = ui_WPNacht;
     uic_WPWatt = ui_WPWatt;
     uic_WPStatus = ui_WPStatus;
-    uic_GrafikWW = ui_GrafikWW;
+    uic_WPmanuel = ui_WPmanuel;
 
 }
 
@@ -213,7 +228,8 @@ void ui_Screen3_screen_destroy(void)
     ui_WPWatt = NULL;
     uic_WPStatus = NULL;
     ui_WPStatus = NULL;
-    uic_GrafikWW = NULL;
-    ui_GrafikWW = NULL;
+    uic_WPmanuel = NULL;
+    ui_WPmanuel = NULL;
+    ui_Label25 = NULL;
 
 }

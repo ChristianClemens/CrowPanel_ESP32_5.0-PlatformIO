@@ -34,6 +34,9 @@ extern lv_obj_t * ui_S4Netz;
 extern lv_obj_t * ui_s4Bat;
 extern lv_obj_t * ui_s4WP;
 extern lv_obj_t * ui_S4Eing;
+extern lv_obj_t * ui_BatterieChart;
+extern lv_obj_t * ui_resSoc;
+extern lv_obj_t * ui_Label28;
 // CUSTOM VARIABLES
 extern lv_obj_t * uic_Netz;
 extern lv_obj_t * uic_Bat;
@@ -47,6 +50,8 @@ extern lv_obj_t * uic_S4Netz;
 extern lv_obj_t * uic_s4Bat;
 extern lv_obj_t * uic_s4WP;
 extern lv_obj_t * uic_S4Eing;
+extern lv_obj_t * uic_BatterieChart;
+extern lv_obj_t * uic_resSoc;
 
 #ifdef __cplusplus
 } /*extern "C"*/

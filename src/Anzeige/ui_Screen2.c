@@ -5,6 +5,7 @@
 
 #include "ui.h"
 
+lv_obj_t * uic_baterieleistung;
 lv_obj_t * uic_kwverbraucht;
 lv_obj_t * uic_kwproduziert;
 lv_obj_t * uic_aktuell;
@@ -20,6 +21,9 @@ lv_obj_t * ui_Label10 = NULL;
 lv_obj_t * ui_Label11 = NULL;
 lv_obj_t * ui_kwproduziert = NULL;
 lv_obj_t * ui_kwverbraucht = NULL;
+lv_obj_t * ui_Label26 = NULL;
+lv_obj_t * ui_baterieleistung = NULL;
+lv_obj_t * ui_Label27 = NULL;
 // event funtions
 void ui_event_Next1(lv_event_t * e)
 {
@@ -55,7 +59,7 @@ void ui_Screen2_screen_init(void)
     ui_Label4 = lv_label_create(ui_Screen2);
     lv_obj_set_width(ui_Label4, LV_SIZE_CONTENT);   /// 1
     lv_obj_set_height(ui_Label4, LV_SIZE_CONTENT);    /// 1
-    lv_obj_set_x(ui_Label4, -327);
+    lv_obj_set_x(ui_Label4, -328);
     lv_obj_set_y(ui_Label4, -212);
     lv_obj_set_align(ui_Label4, LV_ALIGN_CENTER);
     lv_label_set_text(ui_Label4, "Aktuell:");
@@ -137,11 +141,39 @@ void ui_Screen2_screen_init(void)
     lv_label_set_text(ui_kwverbraucht, "9999");
     lv_obj_set_style_text_font(ui_kwverbraucht, &lv_font_montserrat_26, LV_PART_MAIN | LV_STATE_DEFAULT);
 
+    ui_Label26 = lv_label_create(ui_Screen2);
+    lv_obj_set_width(ui_Label26, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_Label26, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_Label26, -327);
+    lv_obj_set_y(ui_Label26, -174);
+    lv_obj_set_align(ui_Label26, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label26, "Batterie:");
+    lv_obj_set_style_text_font(ui_Label26, &lv_font_montserrat_26, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_baterieleistung = lv_label_create(ui_Screen2);
+    lv_obj_set_width(ui_baterieleistung, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_baterieleistung, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_baterieleistung, -548);
+    lv_obj_set_y(ui_baterieleistung, -173);
+    lv_obj_set_align(ui_baterieleistung, LV_ALIGN_RIGHT_MID);
+    lv_label_set_text(ui_baterieleistung, "9999");
+    lv_obj_set_style_text_font(ui_baterieleistung, &lv_font_montserrat_26, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    ui_Label27 = lv_label_create(ui_Screen2);
+    lv_obj_set_width(ui_Label27, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_Label27, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_Label27, -101);
+    lv_obj_set_y(ui_Label27, -172);
+    lv_obj_set_align(ui_Label27, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_Label27, "Watt	");
+    lv_obj_set_style_text_font(ui_Label27, &lv_font_montserrat_26, LV_PART_MAIN | LV_STATE_DEFAULT);
+
     lv_obj_add_event_cb(ui_Next1, ui_event_Next1, LV_EVENT_ALL, NULL);
     uic_Grafikverbrauch = ui_Grafikverbrauch;
     uic_aktuell = ui_aktuell;
     uic_kwproduziert = ui_kwproduziert;
     uic_kwverbraucht = ui_kwverbraucht;
+    uic_baterieleistung = ui_baterieleistung;
 
 }
 
@@ -165,5 +197,9 @@ void ui_Screen2_screen_destroy(void)
     ui_kwproduziert = NULL;
     uic_kwverbraucht = NULL;
     ui_kwverbraucht = NULL;
+    ui_Label26 = NULL;
+    uic_baterieleistung = NULL;
+    ui_baterieleistung = NULL;
+    ui_Label27 = NULL;
 
 }

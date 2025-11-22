@@ -7810,8 +7810,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  36,
-                  47
+                  113,
+                  19
                 ],
                 "InheritedType": 7
               },
@@ -7996,8 +7996,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  36,
-                  92
+                  114,
+                  51
                 ],
                 "InheritedType": 7
               },
@@ -8316,8 +8316,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  -335,
-                  -162
+                  -336,
+                  -184
                 ],
                 "InheritedType": 7
               },
@@ -8467,8 +8467,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  36,
-                  142
+                  111,
+                  83
                 ],
                 "InheritedType": 7
               },
@@ -8643,8 +8643,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  -341,
-                  -113
+                  -334,
+                  -149
                 ],
                 "InheritedType": 7
               },
@@ -8794,8 +8794,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  38,
-                  244
+                  37,
+                  182
                 ],
                 "InheritedType": 7
               },
@@ -8978,8 +8978,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  37,
-                  216
+                  39,
+                  156
                 ],
                 "InheritedType": 7
               },
@@ -9162,8 +9162,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  251,
-                  277
+                  252,
+                  228
                 ],
                 "InheritedType": 7
               },
@@ -9338,8 +9338,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  -266,
-                  44
+                  -263,
+                  -5
                 ],
                 "InheritedType": 7
               },
@@ -9481,8 +9481,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  -286,
-                  -51
+                  -278,
+                  -109
                 ],
                 "InheritedType": 7
               },
@@ -9632,8 +9632,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  -50,
-                  -19
+                  -56,
+                  -78
                 ],
                 "InheritedType": 7
               },
@@ -9783,8 +9783,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  329,
-                  43
+                  325,
+                  -7
                 ],
                 "InheritedType": 7
               },
@@ -9934,8 +9934,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  101,
-                  -190
+                  175,
+                  -215
                 ],
                 "InheritedType": 7
               },
@@ -10085,8 +10085,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  99,
-                  -141
+                  176,
+                  -179
                 ],
                 "InheritedType": 7
               },
@@ -10236,8 +10236,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  99,
-                  -86
+                  173,
+                  -145
                 ],
                 "InheritedType": 7
               },
@@ -10387,8 +10387,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  -50,
-                  13
+                  -56,
+                  -47
                 ],
                 "InheritedType": 7
               },
@@ -10503,6 +10503,7 @@
                 "childs": [
                   {
                     "nid": 15,
+                    "flags": 1048576,
                     "strtype": "_codename/Codename",
                     "strval": "BatterieChart",
                     "InheritedType": 10
@@ -10538,8 +10539,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  -1,
-                  136
+                  2,
+                  101
                 ],
                 "InheritedType": 7
               },
@@ -10549,7 +10550,7 @@
                 "strtype": "OBJECT/Size",
                 "intarray": [
                   645,
-                  127
+                  164
                 ],
                 "InheritedType": 7
               },
@@ -10668,7 +10669,7 @@
               {
                 "nid": 1100,
                 "strtype": "CHART/Font_size_on_X_axis",
-                "integer": 50,
+                "integer": 20,
                 "InheritedType": 6
               },
               {
@@ -10712,7 +10713,7 @@
               {
                 "nid": 1160,
                 "strtype": "CHART/Font_size_on_Primary_Y_axis",
-                "integer": 50,
+                "integer": 100,
                 "InheritedType": 6
               },
               {
@@ -10822,7 +10823,15 @@
               {
                 "nid": 10,
                 "strtype": "OBJECT/Name",
-                "strval": "s4WP1",
+                "strval": "resSoc",
+                "childs": [
+                  {
+                    "nid": 15,
+                    "strtype": "_codename/Codename",
+                    "strval": "resSoc",
+                    "InheritedType": 10
+                  }
+                ],
                 "InheritedType": 10
               },
               {
@@ -10853,8 +10862,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  334,
-                  6
+                  333,
+                  -44
                 ],
                 "InheritedType": 7
               },
@@ -10996,8 +11005,8 @@
                 "flags": 17,
                 "strtype": "OBJECT/Position",
                 "intarray": [
-                  195,
-                  7
+                  191,
+                  -45
                 ],
                 "InheritedType": 7
               },
@@ -11268,7 +11277,7 @@
     "theme_color1": 5,
     "theme_color2": 0,
     "custom_variable_prefix": "uic",
-    "backup_cnt": 35,
+    "backup_cnt": 38,
     "autosave_cnt": 0,
     "group_color_cnt": 0,
     "lvgl_version": "8.3.11",

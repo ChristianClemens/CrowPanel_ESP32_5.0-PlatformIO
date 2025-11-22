@@ -243,13 +243,13 @@ void wifi_health_check() {
   static unsigned long last_health_check = 0;
   static int last_rssi = 0;
   
-  if (millis() - last_health_check > 30000) { // Alle 30 Sekunden
+  if (millis() - last_health_check > 60000) { // Alle 60 Sekunden
     last_health_check = millis();
     
     if (WiFi.isConnected()) {
       int current_rssi = WiFi.RSSI();
       
-      if (current_rssi < -85) {
+      if (current_rssi < -90) {
         Serial.printf("[WiFi] ⚠ Weak signal: %d dBm (critical!)\n", current_rssi);
       } else if (current_rssi < -70) {
         Serial.printf("[WiFi] ⚠ Weak signal: %d dBm\n", current_rssi);
@@ -263,7 +263,7 @@ void wifi_health_check() {
       last_rssi = current_rssi;
       
       // Prüfe auf "Zombie"-Verbindung (verbunden aber keine Kommunikation)
-      if (current_rssi < -90) {
+      if (current_rssi < -95) {
         Serial.println("[WiFi] 🔄 Signal too weak, forcing reconnect...");
         wifi_force_reconnect = true;
         WiFi.disconnect();
@@ -293,13 +293,13 @@ bool oh_get_float(const String& item, float& out) {
     float v = openHABClient.getItemStateFloat(item);
     
     // Debug mit mehr Kontext
-    if (!isnan(v) && v != 0.0) {
+    if (!isnan(v)) {
       Serial.println("[OH] ✓ " + item + ": " + String(v));
       out = v;
       consecutive_failures = 0;
       return true;
     } else {
-      Serial.println("[OH] ✗ " + item + ": invalid/zero (" + String(v) + ") attempt " + String(attempt + 1));
+      Serial.println("[OH] ✗ " + item + ": invalid (NaN) (" + String(v) + ") attempt " + String(attempt + 1));
     }
     
     net_yield(50 + (attempt * 100)); // Längere Wartezeit bei Wiederholungsversuchen
@@ -432,6 +432,11 @@ typedef struct {
 
   int batteryLevel = 0; // in Prozent
   float batteryVerbrauch = 0.0; // in Watt
+  int batteryReserveSoc = 0; // Reserve SoC in Prozent
+  
+  // SOC_15: 96 SOC-Werte für den Tag (alle 15 Minuten) - sichere Implementierung
+  lv_coord_t soc15Values[96];
+  bool soc15Updated = false;
 
   float warmwassergrad = 0.0; // in Grad Celsius
 
@@ -448,6 +453,58 @@ typedef struct {
 static volatile bool g_data_ready = false;
 static data_packet_t g_data;
 static portMUX_TYPE g_mux = portMUX_INITIALIZER_UNLOCKED;
+
+// Chart-Serie für SOC-Daten - sichere Implementierung
+static lv_chart_series_t * g_soc_series = NULL;
+static lv_coord_t g_soc_chart_data[96] = {0};
+static bool g_chart_initialized = false;
+
+// ====================== Sichere Chart-Initialisierung ======================
+void init_batterie_chart() {
+    if (g_chart_initialized) {
+        return; // Bereits initialisiert - kein Log mehr
+    }
+    
+    // Sichere Chart-Validierung
+    if (!ui_BatterieChart) {
+        Serial.println("[INIT] ui_BatterieChart nicht verfügbar");
+        return;
+    }
+    
+    if (!lv_obj_is_valid(ui_BatterieChart)) {
+        Serial.println("[INIT] ui_BatterieChart ungültig");
+        return;
+    }
+    
+    try {
+        // Chart-Konfiguration
+        lv_chart_set_type(ui_BatterieChart, LV_CHART_TYPE_LINE);
+        lv_chart_set_point_count(ui_BatterieChart, 96);
+        
+        // SOC-Serie hinzufügen
+        g_soc_series = lv_chart_add_series(ui_BatterieChart, lv_palette_main(LV_PALETTE_GREEN), LV_CHART_AXIS_PRIMARY_Y);
+        
+        if (g_soc_series) {
+            // Y-Achsen-Bereich für SOC (0-100%)
+            lv_chart_set_range(ui_BatterieChart, LV_CHART_AXIS_PRIMARY_Y, 0, 100);
+            
+            // Initiale Daten setzen
+            for (int i = 0; i < 96; i++) {
+                g_soc_chart_data[i] = 0;
+            }
+            
+            // Externe Daten-Array verknüpfen
+            lv_chart_set_ext_y_array(ui_BatterieChart, g_soc_series, g_soc_chart_data);
+            
+            g_chart_initialized = true;
+            Serial.println("[INIT] BatterieChart SOC-Serie sicher initialisiert");
+        } else {
+            Serial.println("[INIT-ERROR] Konnte SOC-Serie nicht erstellen");
+        }
+    } catch(...) {
+        Serial.println("[INIT-ERROR] Chart-Initialisierung fehlgeschlagen");
+    }
+}
 
 // ====================== Hintergrund-Task: OpenHAB-Fetch ======================
 
@@ -538,6 +595,26 @@ void data_task(void* pv) {
           local.ok = true;
       }
 
+      // SOC_Batt_15 gibt 96 SOC-Werte für den Tag zurück (alle 15 Minuten ab 00:00)
+      count = 0;
+      arr = openHABClient.getItemStateFloatArray("SOC_Batt_15", count);
+      if (arr && count == 96) {
+        // Sichere Datenübertragung mit Bereichsprüfung
+        for (int i = 0; i < 96; ++i) {
+          float val = arr[i];
+          if (val >= 0.0 && val <= 100.0) {
+            local.soc15Values[i] = (lv_coord_t)round(val);
+          } else {
+            local.soc15Values[i] = 0; // Fallback für ungültige Werte
+          }
+        }
+        local.soc15Updated = true;
+        local.ok = true;
+        Serial.println("[DataTask] SOC_Batt_15 Batterieverlauf sicher aktualisiert");
+      } else {
+        Serial.printf("[DataTask] SOC_Batt_15 Fehler: count=%d\n", count);
+      }
+
       count = 0;
       arr = openHABClient.getItemStateFloatArray("tempHistoryItem", count);
       if (arr && count > 0) {
@@ -591,6 +668,12 @@ void data_task(void* pv) {
     
     if (oh_get_float("SMA_Batt_Leistung", t)) { 
         local.batteryVerbrauch = t; 
+        local.ok = true;
+        any_success_this_cycle = true;
+    }
+    
+    if (oh_get_float("SMA_ReserveSoc", t)) { 
+        local.batteryReserveSoc = (int)t; 
         local.ok = true;
         any_success_this_cycle = true;
     }
@@ -755,9 +838,6 @@ void setup() {
 
   lv_chart_set_range(uic_Grafik, LV_CHART_AXIS_SECONDARY_Y, 0, y2_max);
 
-  s_warmwasser = lv_chart_add_series(uic_GrafikWW, lv_color_hex(0xFF0000), LV_CHART_AXIS_PRIMARY_Y); // Rot für Warmwasser
-  lv_chart_set_ext_y_array(uic_GrafikWW, s_warmwasser, warmwassergrad_array); // X-Achse automatisch
-
   // Next-Button Event (ui_btnNext oder ui_btn_Next)
   lv_obj_t* nextBtn = ui_btnNext ? ui_btnNext : ui_btn_Next;
   if (nextBtn) {
@@ -780,6 +860,13 @@ void setup() {
 void loop() {
   // UI bedienen
   lv_timer_handler();
+
+  // BatterieChart initialisieren (nur einmal)
+  static bool chart_init_attempted = false;
+  if (!chart_init_attempted) {
+    chart_init_attempted = true;
+    init_batterie_chart();
+  }
 
   // neue Daten übernehmen (falls vorhanden)
   bool have = false; data_packet_t local{};
@@ -902,30 +989,100 @@ void loop() {
         if (uic_Bat)
         {
         if (local.batteryVerbrauch < 0)
-        { // Dann rot
+        { // Laden - Grün (Batterie nimmt Energie auf)
 
-
-          lv_obj_set_style_bg_color(uic_Bat, lv_color_hex(0xFF0000), LV_PART_INDICATOR | LV_STATE_DEFAULT);
+          lv_obj_set_style_bg_color(uic_Bat, lv_color_hex(0x00FF00), LV_PART_INDICATOR | LV_STATE_DEFAULT);
           lv_bar_set_value(uic_Bat, (int)local.batteryVerbrauch * -1, LV_ANIM_ON);
         }
         else
-        { // Dann grün
+        { // Entladen - Rot (Batterie gibt Energie ab)
 
-          lv_obj_set_style_bg_grad_color(uic_Bat, lv_color_hex(0x00FF00), LV_PART_INDICATOR | LV_STATE_DEFAULT);
+          lv_obj_set_style_bg_color(uic_Bat, lv_color_hex(0xFF0000), LV_PART_INDICATOR | LV_STATE_DEFAULT);
           lv_bar_set_value(uic_Bat, (int)local.batteryVerbrauch, LV_ANIM_ON);
         }
             lv_label_set_text_fmt(uic_s4Bat, "%d Watt", (int)local.batteryVerbrauch);
         } 
     }
 
-    if(uic_Bateriestatus)
-    {
-        lv_bar_set_value(uic_Bateriestatus, local.batteryLevel, LV_ANIM_ON);
-        // Fülle uci_Batterie mit dem aktuellen Batteriestand in Prozent
-        if (uic_Bateriestatus)
-        {
-            lv_label_set_text_fmt(uic_S4Bateriestatus, "%d %%", local.batteryLevel);
-        } 
+    // Batterie UI-Updates mit korrekten Element-Namen
+    if (local.batteryLevel >= 0 && local.batteryLevel <= 100) {
+        // Batterie-Status Bar mit Validierung (korrekte Namen: ui_Bateriestatus)
+        if(ui_Bateriestatus && lv_obj_is_valid(ui_Bateriestatus)) {
+            try {
+                lv_bar_set_value(ui_Bateriestatus, local.batteryLevel, LV_ANIM_OFF);
+                Serial.printf("[UI-OK] Batterie Bar (ui_Bateriestatus): %d%%\\n", local.batteryLevel);
+            } catch(...) {
+                Serial.println("[UI-ERROR] Batterie Bar update failed");
+            }
+        } else {
+            Serial.println("[UI-WARNING] ui_Bateriestatus not available");
+        }
+        
+        // Batterie-Status Label mit Validierung (korrekte Namen: ui_S4Bateriestatus)
+        if (ui_S4Bateriestatus && lv_obj_is_valid(ui_S4Bateriestatus)) {
+            try {
+                lv_label_set_text_fmt(ui_S4Bateriestatus, "%d %%", local.batteryLevel);
+                Serial.printf("[UI-OK] Batterie Label (ui_S4Bateriestatus): %d%%\\n", local.batteryLevel);
+            } catch(...) {
+                Serial.println("[UI-ERROR] Batterie Label update failed");
+            }
+        } else {
+            Serial.println("[UI-WARNING] ui_S4Bateriestatus not available");
+        }
+    } else {
+        Serial.printf("[UI-WARNING] Invalid battery level: %d%%\\n", local.batteryLevel);
+    }
+    
+    // Debug: Batterie-Leistung im Serial ausgeben
+    Serial.printf("[UI-DEBUG] Batterie: %d%%, Leistung: %.1fW\\n", local.batteryLevel, local.batteryVerbrauch);
+
+    // Reserve SoC UI-Updates mit erweiterten Sicherheitsprüfungen
+    if (local.batteryReserveSoc >= 0 && local.batteryReserveSoc <= 100) {
+        // Bar-Update mit Validierung
+        if(uic_resSoc && lv_obj_is_valid(uic_resSoc)) {
+            try {
+                lv_bar_set_value(uic_resSoc, local.batteryReserveSoc, LV_ANIM_OFF); // Ohne Animation
+                Serial.printf("[UI-OK] Reserve SoC Bar: %d%%\n", local.batteryReserveSoc);
+            } catch(...) {
+                Serial.println("[UI-ERROR] Reserve SoC Bar update failed");
+            }
+        }
+        
+        // Label-Update mit Validierung  
+        if(ui_resSoc && lv_obj_is_valid(ui_resSoc)) {
+            try {
+                lv_label_set_text_fmt(ui_resSoc, "%d %%", local.batteryReserveSoc);
+                Serial.printf("[UI-OK] Reserve SoC Label: %d%%\n", local.batteryReserveSoc);
+            } catch(...) {
+                Serial.println("[UI-ERROR] Reserve SoC Label update failed");
+            }
+        }
+    } else {
+        Serial.printf("[UI-WARNING] Invalid Reserve SoC value: %d%%\n", local.batteryReserveSoc);
+    }
+
+    // BatterieChart mit SOC_Batt_15 Daten sicher aktualisieren
+    if (local.soc15Updated && g_chart_initialized && g_soc_series) {
+        if (ui_BatterieChart && lv_obj_is_valid(ui_BatterieChart)) {
+            try {
+                // Sichere Datenübertragung
+                for (int i = 0; i < 96; i++) {
+                    g_soc_chart_data[i] = local.soc15Values[i];
+                }
+                
+                // Chart-Refresh ohne kritische Funktionen
+                lv_obj_invalidate(ui_BatterieChart);
+                
+                Serial.println("[UI-OK] BatterieChart mit SOC_Batt_15 sicher aktualisiert");
+            } catch(...) {
+                Serial.println("[UI-ERROR] Chart-Update fehlgeschlagen");
+            }
+        }
+        
+        // Flag zurücksetzen
+        taskENTER_CRITICAL(&g_mux);
+        g_data.soc15Updated = false;
+        taskEXIT_CRITICAL(&g_mux);
     }
 
     

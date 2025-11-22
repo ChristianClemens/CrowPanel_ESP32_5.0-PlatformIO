@@ -25,11 +25,15 @@ extern lv_obj_t * ui_Label10;
 extern lv_obj_t * ui_Label11;
 extern lv_obj_t * ui_kwproduziert;
 extern lv_obj_t * ui_kwverbraucht;
+extern lv_obj_t * ui_Label26;
+extern lv_obj_t * ui_baterieleistung;
+extern lv_obj_t * ui_Label27;
 // CUSTOM VARIABLES
 extern lv_obj_t * uic_Grafikverbrauch;
 extern lv_obj_t * uic_aktuell;
 extern lv_obj_t * uic_kwproduziert;
 extern lv_obj_t * uic_kwverbraucht;
+extern lv_obj_t * uic_baterieleistung;
 
 #ifdef __cplusplus
 } /*extern "C"*/
