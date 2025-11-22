@@ -45,7 +45,10 @@ class OpenHABClient {
     }
 
     float getItemStateFloat(const String& itemName) {
-      if (WiFi.status() != WL_CONNECTED) return 0.0;
+      if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("[OpenHAB] WiFi not connected for " + itemName);
+        return NAN;
+      }
 
       HTTPClient http;
       String url = "http://" + serverIP + ":" + String(port) + "/rest/items/" + itemName + "/state";
@@ -55,19 +58,53 @@ class OpenHABClient {
         http.addHeader("Authorization", "Bearer " + token);
 
       int httpCode = http.GET();
-      String payload = (httpCode == 200) ? http.getString() : "";
+      String payload = "";
+      
+      if (httpCode == 200) {
+        payload = http.getString();
+        payload.trim(); // Entferne Whitespace
+      } else {
+        Serial.println("[OpenHAB] HTTP Error " + String(httpCode) + " for " + itemName);
+        http.end();
+        return NAN;
+      }
+      
       http.end();
-      // gebe die Payload per Serial aus mit dem itemName
-      //  Serial.println("Item: " + itemName + " State: " + payload);
-            
+      
+      // Debug-Ausgabe
+      Serial.println("[OpenHAB] " + itemName + " raw response: '" + payload + "'");
+      
+      // Prüfe auf OpenHAB-spezifische ungültige Zustände
+      if (payload.length() == 0 || payload == "NULL" || payload == "UNDEF" || payload == "-") {
+        Serial.println("[OpenHAB] Invalid state for " + itemName + ": '" + payload + "'");
+        return NAN;
+      }
 
-      // Formatiere die Playlod um konvertriere zu Flaot
-      float retunvalue = 0.0;
-      if (payload.length() > 0) {
-        retunvalue = payload.toFloat();
-      } 
+      // Konvertiere zu Float
+      float result = payload.toFloat();
+      
+      // toFloat() gibt 0.0 zurück bei ungültigen Strings, aber auch bei echten Nullwerten
+      // Prüfe ob der String wirklich eine Zahl repräsentiert
+      if (result == 0.0 && payload != "0" && payload != "0.0" && payload != "0.00") {
+        // Prüfe ob der String tatsächlich eine gültige Zahl ist
+        bool isValidNumber = false;
+        for (int i = 0; i < payload.length(); i++) {
+          char c = payload[i];
+          if (isdigit(c) || c == '.' || c == '-' || c == '+') {
+            if (isdigit(c)) isValidNumber = true;
+          } else {
+            isValidNumber = false;
+            break;
+          }
+        }
+        
+        if (!isValidNumber) {
+          Serial.println("[OpenHAB] Invalid number format for " + itemName + ": '" + payload + "'");
+          return NAN;
+        }
+      }
 
-      return retunvalue;
+      return result;
     }
 
       // Liefert ein Array von Floats aus dem State eines Items, das ein Array als String liefert (z.B. "[1.0,2.0,3.0]")

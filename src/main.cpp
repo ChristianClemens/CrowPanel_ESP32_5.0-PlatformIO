@@ -16,7 +16,7 @@
 
 // ====================== OpenHAB ======================
 IPAddress openhabServer(192, 168, 2, 1);
-String bearer = "oh.Anzeigeprojekt.HOeAmT73Y13JzEsITBVLuoXNSQTyRkruv4CiNl6catA2KhbZUHg2V0zbFfkbUXqZHZCjg8T4DE6rfCNi97Jg";
+String bearer = "oh.ESPAnzeige.eJK1Z47f7e1KBGLqOJXayr8cM8dhaUIk8lnhgJvD6J01uSkd2L2ruyJDp391nOKtQFGa8NsVM9XgOflC1w";
 OpenHABClient openHABClient(openhabServer.toString(), 8080, bearer);
 
 // ====================== LovyanGFX Panel ======================
@@ -102,57 +102,257 @@ extern lv_obj_t* uic_Preis;
 //  while (WiFi.status() != WL_CONNECTED && (millis() - t0) < 15000) { delay(300); }
 // }
 
-void onWiFiEvent(WiFiEvent_t event) {
+// WiFi Reconnect-Management
+static unsigned long last_wifi_check = 0;
+static int wifi_reconnect_attempts = 0;
+static bool wifi_force_reconnect = false;
+
+void onWiFiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
   switch (event) {
     case ARDUINO_EVENT_WIFI_STA_START:
-     WiFi.begin(ssid, password);
-      break;
-    case ARDUINO_EVENT_WIFI_STA_GOT_IP:
-      Serial.printf("[WiFi] Verbunden: %s\n", WiFi.localIP().toString().c_str());
-      break;
-    case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
-      Serial.println("[WiFi] Verbindung verloren → Reconnect...");
-      WiFi.disconnect(true, false);
+      Serial.println("[WiFi] STA Started");
       WiFi.begin(ssid, password);
       break;
+      
+    case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+      Serial.printf("[WiFi] ✓ Verbunden: %s (RSSI: %d dBm)\n", WiFi.localIP().toString().c_str(), WiFi.RSSI());
+      wifi_reconnect_attempts = 0;
+      wifi_force_reconnect = false;
+      break;
+      
+    case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+      {
+        uint8_t reason = info.wifi_sta_disconnected.reason;
+        Serial.printf("[WiFi] ⚠ Disconnected - Reason: %d (", reason);
+        
+        switch (reason) {
+          case WIFI_REASON_NO_AP_FOUND:
+            Serial.print("Access Point not found"); break;
+          case WIFI_REASON_AUTH_FAIL:
+            Serial.print("Authentication failed"); break;
+          case WIFI_REASON_ASSOC_LEAVE:
+            Serial.print("Association leave"); break;
+          case WIFI_REASON_ASSOC_TOOMANY:
+            Serial.print("Too many associations"); break;
+          case WIFI_REASON_NOT_AUTHED:
+            Serial.print("Not authenticated"); break;
+          case WIFI_REASON_NOT_ASSOCED:
+            Serial.print("Not associated"); break;
+          case WIFI_REASON_ASSOC_FAIL:
+            Serial.print("Association failed"); break;
+          case WIFI_REASON_HANDSHAKE_TIMEOUT:
+            Serial.print("Handshake timeout"); break;
+          case WIFI_REASON_CONNECTION_FAIL:
+            Serial.print("Connection failed"); break;
+          case WIFI_REASON_AP_TSF_RESET:
+            Serial.print("AP TSF reset"); break;
+          case WIFI_REASON_ROAMING:
+            Serial.print("Roaming"); break;
+          case WIFI_REASON_BEACON_TIMEOUT:
+            Serial.print("Beacon timeout - weak signal!"); break;
+          default:
+            Serial.printf("Unknown reason %d", reason); break;
+        }
+        Serial.println(")");
+        
+        wifi_reconnect_attempts++;
+        
+        // Intelligente Reconnect-Strategie
+        if (wifi_reconnect_attempts < 5) {
+          Serial.printf("[WiFi] Reconnect attempt %d/5 in 2 seconds...\n", wifi_reconnect_attempts);
+          vTaskDelay(pdMS_TO_TICKS(2000));
+          WiFi.begin(ssid, password);
+        } else if (wifi_reconnect_attempts == 5) {
+          Serial.println("[WiFi] 🔄 Full WiFi restart after 5 failed attempts");
+          WiFi.disconnect(true);
+          vTaskDelay(pdMS_TO_TICKS(1000));
+          WiFi.mode(WIFI_OFF);
+          vTaskDelay(pdMS_TO_TICKS(1000));
+          Serial.println("[WiFi] Waiting for auto-restart...");
+        }
+      }
+      break;
+      
+    case ARDUINO_EVENT_WIFI_STA_AUTHMODE_CHANGE:
+      Serial.println("[WiFi] Auth mode changed");
+      break;
+      
     default:
+      Serial.printf("[WiFi] Event: %d\n", event);
       break;
   }
 }
 
-// ---- Stabiles WLAN-Setup ----
+// ---- Stabiles WLAN-Setup mit erweiterten Einstellungen ----
 void wifi_init_stable() {
-  WiFi.persistent(false);
-  WiFi.mode(WIFI_STA);
-  WiFi.setSleep(false);                // keine Stromspar-Disconnects
+  Serial.println("[WiFi] Initializing WiFi...");
+  
+  // Vollständiger WiFi-Reset
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+  vTaskDelay(pdMS_TO_TICKS(500));
+  
+  WiFi.persistent(false);              // Keine Speicherung in Flash
+  WiFi.mode(WIFI_STA);                 // Station Mode
+  WiFi.setSleep(WIFI_PS_NONE);         // Kein Power Save 
   WiFi.setHostname("esp32s3-panel");
-  WiFi.setTxPower(WIFI_POWER_19_5dBm); // volle Leistung
-
+  
+  // Erweiterte WiFi-Einstellungen für Stabilität
+  WiFi.setTxPower(WIFI_POWER_19_5dBm); // Maximale Sendeleistung
+  WiFi.setAutoReconnect(true);         // Automatischer Reconnect
+  
+  // Länder-spezifische Einstellungen
   wifi_country_t country = {"DE", 1, 13, WIFI_COUNTRY_POLICY_MANUAL};
   esp_wifi_set_country(&country);
-
+  
+  // Erweiterte ESP32-spezifische Einstellungen
+  esp_wifi_set_ps(WIFI_PS_NONE);      // Power Save komplett aus
+  
+  // Event Handler registrieren
   WiFi.onEvent(onWiFiEvent);
+  
+  Serial.printf("[WiFi] Connecting to '%s'...\n", ssid);
   WiFi.begin(ssid, password);
 
-  wl_status_t res = (wl_status_t)WiFi.waitForConnectResult(8000);
-  if (res != WL_CONNECTED)
-    Serial.printf("[WiFi] Erstverbindung fehlgeschlagen (%d)\n", res);
+  // Warte auf Verbindung mit detailliertem Status
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+    vTaskDelay(pdMS_TO_TICKS(500));
+    Serial.print(".");
+    attempts++;
+    
+    if (attempts == 10) {
+      Serial.println();
+      Serial.println("[WiFi] Taking longer than expected, checking signal...");
+    }
+  }
+  
+  Serial.println();
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.printf("[WiFi] ✓ Connected successfully!\n");
+    Serial.printf("[WiFi] IP: %s, RSSI: %d dBm\n", WiFi.localIP().toString().c_str(), WiFi.RSSI());
+  } else {
+    Serial.printf("[WiFi] ✗ Initial connection failed (Status: %d)\n", WiFi.status());
+  }
+  
+  wifi_reconnect_attempts = 0;
+}
+
+// WiFi-Gesundheitsüberwachung
+void wifi_health_check() {
+  static unsigned long last_health_check = 0;
+  static int last_rssi = 0;
+  
+  if (millis() - last_health_check > 30000) { // Alle 30 Sekunden
+    last_health_check = millis();
+    
+    if (WiFi.isConnected()) {
+      int current_rssi = WiFi.RSSI();
+      
+      if (current_rssi < -85) {
+        Serial.printf("[WiFi] ⚠ Weak signal: %d dBm (critical!)\n", current_rssi);
+      } else if (current_rssi < -70) {
+        Serial.printf("[WiFi] ⚠ Weak signal: %d dBm\n", current_rssi);
+      }
+      
+      // Drastische Signaländerung?
+      if (abs(current_rssi - last_rssi) > 20 && last_rssi != 0) {
+        Serial.printf("[WiFi] ⚠ Signal changed dramatically: %d → %d dBm\n", last_rssi, current_rssi);
+      }
+      
+      last_rssi = current_rssi;
+      
+      // Prüfe auf "Zombie"-Verbindung (verbunden aber keine Kommunikation)
+      if (current_rssi < -90) {
+        Serial.println("[WiFi] 🔄 Signal too weak, forcing reconnect...");
+        wifi_force_reconnect = true;
+        WiFi.disconnect();
+      }
+    } else {
+      Serial.println("[WiFi] ✗ Not connected during health check");
+    }
+  }
 }
 
 // Kleine Pause zwischen HTTP-Calls, damit der Stack atmen kann
-static inline void net_yield(uint32_t ms=15) { vTaskDelay(pdMS_TO_TICKS(ms)); }
+static inline void net_yield(uint32_t ms=15) { 
+  vTaskDelay(pdMS_TO_TICKS(ms)); 
+  wifi_health_check(); // WiFi-Gesundheit prüfen
+}
 
-// OpenHAB fetch mit 1x Retry
+// OpenHAB fetch mit robuster Fehlerbehandlung
 bool oh_get_float(const String& item, float& out) {
-  for (int attempt = 0; attempt < 2; ++attempt) {
+  static int consecutive_failures = 0;
+  
+  for (int attempt = 0; attempt < 3; ++attempt) {
+    if (!WiFi.isConnected()) {
+      Serial.println("[OH] WiFi disconnected during " + item + " fetch");
+      return false;
+    }
+    
     float v = openHABClient.getItemStateFloat(item);
     
-    //debug
-    Serial.println("Item: " + item + " Value: " + String(v));
+    // Debug mit mehr Kontext
+    if (!isnan(v) && v != 0.0) {
+      Serial.println("[OH] ✓ " + item + ": " + String(v));
+      out = v;
+      consecutive_failures = 0;
+      return true;
+    } else {
+      Serial.println("[OH] ✗ " + item + ": invalid/zero (" + String(v) + ") attempt " + String(attempt + 1));
+    }
     
-    if (!isnan(v)) { out = v; return true; }
-    net_yield(30);
+    net_yield(50 + (attempt * 100)); // Längere Wartezeit bei Wiederholungsversuchen
   }
+  
+  consecutive_failures++;
+  Serial.println("[OH] ⚠ Failed to fetch " + item + " after 3 attempts (consecutive fails: " + String(consecutive_failures) + ")");
+  
+  // Nach 10 aufeinanderfolgenden Fehlern OpenHAB-Client neu initialisieren
+  if (consecutive_failures >= 10) {
+    Serial.println("[OH] 🔄 Reinitializing OpenHAB client due to consecutive failures");
+    openHABClient = OpenHABClient(openhabServer.toString(), 8080, bearer);
+    consecutive_failures = 0;
+    net_yield(1000); // 1 Sekunde Pause nach Neuinitialisierung
+  }
+  
+  return false;
+}
+
+// OpenHAB String fetch mit robuster Fehlerbehandlung
+bool oh_get_string(const String& item, String& out) {
+  static int consecutive_string_failures = 0;
+  
+  for (int attempt = 0; attempt < 3; ++attempt) {
+    if (!WiFi.isConnected()) {
+      Serial.println("[OH] WiFi disconnected during " + item + " string fetch");
+      return false;
+    }
+    
+    String s = openHABClient.getItemState(item);
+    
+    if (s.length() > 0 && s != "NULL" && s != "UNDEF") {
+      Serial.println("[OH] ✓ " + item + ": '" + s + "'");
+      out = s;
+      consecutive_string_failures = 0;
+      return true;
+    } else {
+      Serial.println("[OH] ✗ " + item + ": empty/invalid ('" + s + "') attempt " + String(attempt + 1));
+    }
+    
+    net_yield(50 + (attempt * 100));
+  }
+  
+  consecutive_string_failures++;
+  Serial.println("[OH] ⚠ Failed to fetch string " + item + " after 3 attempts (consecutive fails: " + String(consecutive_string_failures) + ")");
+  
+  if (consecutive_string_failures >= 10) {
+    Serial.println("[OH] 🔄 Reinitializing OpenHAB client due to string fetch failures");
+    openHABClient = OpenHABClient(openhabServer.toString(), 8080, bearer);
+    consecutive_string_failures = 0;
+    net_yield(1000);
+  }
+  
   return false;
 }
 
@@ -172,6 +372,7 @@ void my_touchpad_read(lv_indev_drv_t *indev_driver, lv_indev_data_t *data) {
 
 // ====================== Chart/Serien/Arrays ======================
 static lv_chart_series_t* s_prices = nullptr;   // PRIMARY_Y
+static lv_chart_series_t* s_pricesmorgen = nullptr;   // PRIMARY_Y
 static lv_chart_series_t* s_power  = nullptr;   // SECONDARY_Y
 
 static lv_chart_series_t* s_verbrauch = nullptr; // PRIMARY_Y
@@ -180,7 +381,7 @@ static lv_chart_series_t* s_einspeisung = nullptr; // PRIMARY_Y
 static lv_chart_series_t* s_warmwasser = nullptr; // PRIMARY_Y
 
 static lv_coord_t strompreiseHeute_array[96];
-static lv_coord_t strompreiseMorgen_array[96];
+
 
 static lv_coord_t stromverbrauch_array[96];
 static lv_coord_t warmwassergrad_array[96];
@@ -210,8 +411,9 @@ static void on_next(lv_event_t* e) {
 typedef struct {
 
   lv_coord_t strompreiseHeute[96];
-  lv_coord_t strompreiseMorgen[96];
+
   lv_coord_t strompreisMax;
+  lv_coord_t strompreisMin;
   lv_coord_t verbrauch15[96];
 
   lv_coord_t vmaxGrafik; // max. Verbrauch in den letzten 60 Minuten
@@ -232,7 +434,7 @@ typedef struct {
   float batteryVerbrauch = 0.0; // in Watt
 
   float warmwassergrad = 0.0; // in Grad Celsius
-  lv_coord_t Warmwassergrad_array[96];
+
 
 
   String WPTag = ""; // Heizprogramm der Wärmepumpe für heute
@@ -249,226 +451,236 @@ static portMUX_TYPE g_mux = portMUX_INITIALIZER_UNLOCKED;
 
 // ====================== Hintergrund-Task: OpenHAB-Fetch ======================
 
-const uint32_t UPDATE_MS_OK   = 30000;
-const uint32_t UPDATE_MS_FAIL = 10000;
 
 void data_task(void* pv) {
-  uint32_t nextWait = UPDATE_MS_OK;
-
+  // Zähler für verschiedene Update-Intervalle
+  int cycle_counter = 0;
+  unsigned long last_success_time = millis();
+  int connection_check_counter = 0;
+  
   for (;;) {
+    // Erweiterte WiFi-Verbindungsprüfung
     if (!WiFi.isConnected()) {
-      vTaskDelay(pdMS_TO_TICKS(1000));
+      Serial.println("[DataTask] WiFi disconnected, waiting for reconnection...");
+      vTaskDelay(pdMS_TO_TICKS(5000));
       continue;
     }
-
-    // Kann ich feststellen welech Sceen aktuell angezeigt wird?
     
+    // Periodische Verbindungsqualitätsprüfung mit erweiterten Diagnosen
+    connection_check_counter++;
+    if (connection_check_counter % 6 == 0) { // Alle Minute (6 * 10s)
+      int rssi = WiFi.RSSI();
+      uint32_t free_heap = ESP.getFreeHeap();
+      
+      Serial.printf("[DataTask] WiFi: RSSI=%d dBm, IP=%s, Heap=%d bytes, Reconnects=%d\n", 
+                   rssi, WiFi.localIP().toString().c_str(), free_heap, wifi_reconnect_attempts);
+      
+      // Warne bei kritischem Signal
+      if (rssi < -80) {
+        Serial.printf("[DataTask] ⚠ Signal critical: %d dBm - potential connection issues!\n", rssi);
+      }
+      
+      // Memory-Leak-Warnung
+      if (free_heap < 50000) {
+        Serial.printf("[DataTask] ⚠ Low memory: %d bytes remaining!\n", free_heap);
+      }
+      
+      // Wenn mehr als 10 Minuten keine erfolgreichen Daten
+      if (millis() - last_success_time > 600000) {
+        Serial.println("[DataTask] ⚠ No successful data for >10min, forcing complete WiFi restart");
+        wifi_force_reconnect = true;
+        WiFi.disconnect();
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        wifi_init_stable();
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        last_success_time = millis(); // Reset timer
+      }
+      
+      // Bei zu vielen Reconnects kompletten Neustart
+      if (wifi_reconnect_attempts > 10) {
+        Serial.println("[DataTask] 🔄 Too many WiFi reconnects - scheduling ESP restart in 30s");
+        vTaskDelay(pdMS_TO_TICKS(30000));
+        ESP.restart();
+      }
+    }
 
+    cycle_counter++;
     data_packet_t local{}; local.ok = false;
-    // Item stromtagesverbrauch_15 gibt  96 Werte als Array zurück jeder 15 Minuten ein Wert ab 00:00
-    int count = 0;
-    float* arr = openHABClient.getItemStateFloatArray("stromtagesverbrauch_15", count);
-    Serial.println("Count: " + String(count));
-    if (arr && count == 96) {
-        local.vmaxGrafik = 0;
-
-        for (int i = 0; i < 96; ++i) {
-            local.verbrauch15[i] = round_up_step(arr[i] * 1000.0 * 4, 10); // kWh -> Wh *4 da 15min
-            if (local.verbrauch15[i] > local.vmaxGrafik) local.vmaxGrafik = local.verbrauch15[i];
-        }
-        local.ok = true;
-    }
-    //  Item Strompreisverlauf gibt  96 Werte als Array zurück jeder 15 Minuten ein Wert ab 00:00
-    count = 0;
-    arr = openHABClient.getItemStateFloatArray("Strompreisverlauf", count);
-    Serial.println("Count: " + String(count));
-    if (arr && count == 96) {
-        for (int i = 0; i < 96; ++i) local.strompreiseHeute[i] = round_up_step(arr[i], 1); // Eurocent
-        local.ok = true;
-    }
-    arr = openHABClient.getItemStateFloatArray("Strompreisverlauf", count);
-    Serial.println("Count: " + String(count));
-    if (arr && count == 96) {
-        for (int i = 0; i < 96; ++i) local.strompreiseHeute[i] = round_up_step(arr[i], 1); // Eurocent
-        local.ok = true;
-    }
+    bool any_success_this_cycle = false;
     
-    count = 0;
-    arr = openHABClient.getItemStateFloatArray("tempHistoryItem", count);
-    Serial.println("Count: " + String(count));
-    if (arr && count > 0) {
-      int n = count;
-      if (n > 96) n = 96;
-
-      // Fülle vorhandene Werte
-      for (int i = 0; i < n; ++i) {
-        local.Warmwassergrad_array[i] = (lv_coord_t)arr[i]; // Grad Celsius (Ganzzahl)
+    // Kopiere vorherige Werte als Fallback
+    taskENTER_CRITICAL(&g_mux);
+    local = g_data;
+    taskEXIT_CRITICAL(&g_mux);
+    
+    Serial.printf("[DataTask] Cycle %d starting (WiFi RSSI: %d dBm)\n", cycle_counter, WiFi.RSSI());
+    // ========== HISTORISCHE ARRAYS - nur alle 15 Minuten (90 Zyklen à 10s) ==========
+    if (cycle_counter % 90 == 1) {
+      Serial.println("[DataTask] Updating historical arrays...");
+      
+      // Item stromtagesverbrauch_15 gibt  96 Werte als Array zurück jeder 15 Minuten ein Wert ab 00:00
+      int count = 0;
+      float* arr = openHABClient.getItemStateFloatArray("stromtagesverbrauch_15", count);
+      if (arr && count == 96) {
+          local.vmaxGrafik = 0;
+          for (int i = 0; i < 96; ++i) {
+              local.verbrauch15[i] = round_up_step(arr[i] * 1000.0 * 4, 10); // kWh -> Wh *4 da 15min
+              if (local.verbrauch15[i] > local.vmaxGrafik) local.vmaxGrafik = local.verbrauch15[i];
+          }
+          local.ok = true;
+      }
+      
+      //  Item Strompreisverlauf gibt  96 Werte als Array zurück jeder 15 Minuten ein Wert ab 00:00
+      count = 0;
+      arr = openHABClient.getItemStateFloatArray("Strompreisverlauf", count);
+      if (arr && count == 96) {
+          for (int i = 0; i < 96; ++i) local.strompreiseHeute[i] = round_up_step(arr[i], 1); // Eurocent
+          local.ok = true;
       }
 
-    
-      for (int i = n; i < 96; ++i) {
-        local.Warmwassergrad_array[i] = 0; // Rest mit 0 auffüllen
+      count = 0;
+      arr = openHABClient.getItemStateFloatArray("tempHistoryItem", count);
+      if (arr && count > 0) {
+        int n = count;
+        if (n > 96) n = 96;
+        // TODO: Add missing code here for processing tempHistoryItem
       }
 
-      local.ok = true;
-    } else {
-      Serial.println("tempHistoryItem: keine oder ungueltige Daten");
-      // optional: mit 0 auffüllen
-      for (int i = 0; i < 96; ++i) local.Warmwassergrad_array[i] = 0;
+      // Imt stromtagesverbrauch_60min gibt  60 Werte der letzen 60 Minuten zurück
+      count = 0;
+      arr = openHABClient.getItemStateFloatArray("stromstundenverbrauch", count);
+      if (arr && count == 60) {
+          local.vmaxGrafikverbrauch = 0;
+          for (int i = 0; i < 60; ++i) {
+              local.verbrauch60min[i] = arr[i]; // kWh -> Wh
+              if (abs(local.verbrauch60min[i]) > local.vmaxGrafikverbrauch) local.vmaxGrafikverbrauch = abs(local.verbrauch60min[i]);
+          }
+          local.ok = true;
+      }
+      net_yield();
     }
 
-    // Imt stromtagesverbrauch_60min gibt  60 Werte der letzen 60 Minuten zurück
-    count = 0;
-    arr = openHABClient.getItemStateFloatArray("stromstundenverbrauch", count);
-    Serial.println("Count: " + String(count));
-    if (arr && count == 60) {
-        local.vmaxGrafikverbrauch = 0;
-        for (int i = 0; i < 60; ++i) {
-            local.verbrauch60min[i] = arr[i]; // kWh -> Wh
-            if (abs(local.verbrauch60min[i]) > local.vmaxGrafikverbrauch) local.vmaxGrafikverbrauch = abs(local.verbrauch60min[i]);
-        }
-        local.ok = true;
-    }
-
-     net_yield();
-
-    // ---- aktuelle Labels ----
+    // ========== AKTUELLE WERTE - jeden Zyklus (10 Sekunden) ==========
     float t;
     
-    if (oh_get_float("Strompreis_Current", t)) { 
-        local.preisaktuell = t; 
-        local.ok = true; 
-     
-    } else {
-        Serial.println("Failed to fetch Strompreis_Current");
-    }
-
+    // Häufig benötigte aktuelle Werte
     if (oh_get_float("kwverbraucht", t)) { 
         local.verbrauch = t;
         local.stromverbrauch = t; 
-        local.ok = true; 
-//    Serial.println("Fetched kwverbraucht: " + String(t));
-    } else {
-        Serial.println("Failed to fetch kwverbraucht");
-    }
-
-    // get Float Items
-    if (oh_get_float("SMA_Batt_SoC", t)) { 
-        local.batteryLevel = (int)t; 
         local.ok = true;
-    } 
-    else {
-        Serial.println("Failed to fetch batteryLevel");
+        any_success_this_cycle = true;
     }
-
-    if (oh_get_float("SMA_Batt_Leistung", t)) { 
-        local.batteryVerbrauch = t; 
-        local.ok = true;
-    } 
-    else {
-        Serial.println("Failed to fetch batteryVerbrauch");
-    }
-
-
-  //  float stromtageskosten = 0.0; Item Stromtageskosten
-    if (oh_get_float("Stromtageskosten", t)) { 
-        local.stromtageskosten = t; 
-        local.ok = true;
-    } 
-    else {
-        Serial.println("Failed to fetch Stromtageskosten");
-    }
-
-  //  float aktuellerVerbrauch = 0.0; Item  StromAktuell
+    
     if (oh_get_float("StromAktuell", t)) { 
         local.aktuellerVerbrauch = t; 
         local.ok = true;
-    } 
-    else {
-        Serial.println("Failed to fetch StromAktuell");
+        any_success_this_cycle = true;
     }
-
-
-  //  float stromeinspeisung = 0.0; // in KW kwproduziert
+    
     if (oh_get_float("kwproduziert", t)) { 
         local.stromeinspeisung = t; 
         local.ok = true;
-    } 
-    else {
-        Serial.println("Failed to fetch kwproduziert");
+        any_success_this_cycle = true;
     }
-
-
-// float warmwassergrad = 0.0; // in Grad Celsius Item Temp_Sensor6
-    if (oh_get_float("Temp_Sensor6", t)) { 
-        local.warmwassergrad = t; 
+    
+    if (oh_get_float("SMA_Batt_SoC", t)) { 
+        local.batteryLevel = (int)t; 
         local.ok = true;
-    } 
-    else {
-        Serial.println("Failed to fetch Temp_Sensor6");
+        any_success_this_cycle = true;
     }
-
-  // String WPTag = ""; // Heizprogramm der Wärmepumpe für heute Item CheapestTimes_Day
-    {
-        String s = openHABClient.getItemState("CheapestTimes_Day");
-        if (s.length() > 0) { local.WPTag = s; local.ok = true; } 
-        else {
-            Serial.println("Failed to fetch CheapestTimes_Day");
-        }
-    }
-  // String WPNacht = ""; // Heizprogramm der Wärmepumpe für die Nacht
-    {
-        String s = openHABClient.getItemState("CheapestTimes_Night");
-        if (s.length() > 0) { local.WPNacht = s; local.ok = true; } 
-        else {
-            Serial.println("Failed to fetch CheapestTimes_Night");
-        }
-    }
-
-  
-  // String WPStatus = ""; // Aktives Heizprogramm der Wärmepumpe für heute  Item Relay2
-    {
-        String s = openHABClient.getItemState("Relay2");
-        if (s.length() > 0) {
-            if (s == "ON")
-            {
-                local.WPStatus = "Abgeschaltet";
-                /* code */
-            }
-            else if (s == "OFF")
-            {
-                local.WPStatus = "Eingeschaltet";
-            }
-            else
-            {
-                local.WPStatus = s; // Sonstige Zustände direkt übernehmen  
-
-            }
-
-            
-             local.ok = true; } 
-        else {
-            Serial.println("Failed to fetch Relay2");
-        }
-    }
-  // float WPWatt = 0.0; // Aktives Heizprogramm der Wärmepumpe für die Nacht ITEm kwwp
-    if (oh_get_float("WPAktuell", t)) { 
-        local.WPWatt = t; 
+    
+    if (oh_get_float("SMA_Batt_Leistung", t)) { 
+        local.batteryVerbrauch = t; 
         local.ok = true;
+        any_success_this_cycle = true;
+    }
+    
+    net_yield();
+    
+    // ========== PREISINFORMATIONEN - alle 5 Minuten (30 Zyklen à 10s) ==========
+    if (cycle_counter % 30 == 0) {
+      Serial.println("[DataTask] Updating price information...");
+      
+      if (oh_get_float("Strompreis_Current", t)) { 
+          local.preisaktuell = t; 
+          local.ok = true;
+          any_success_this_cycle = true;
+      }
+      
+      if (oh_get_float("Stromtageskosten", t)) { 
+          local.stromtageskosten = t; 
+          local.ok = true;
+          any_success_this_cycle = true;
+      }
+      
+      if (oh_get_float("Temp_Sensor6", t)) { 
+          local.warmwassergrad = t; 
+          local.ok = true;
+          any_success_this_cycle = true;
+      }
+      net_yield();
+    }
+    
+    // ========== WÄRMEPUMPEN-DATEN - alle 2 Minuten (12 Zyklen à 10s) ==========
+    if (cycle_counter % 12 == 0) {
+      Serial.println("[DataTask] Updating heat pump data...");
+      
+      // Heizprogramm der Wärmepumpe für heute Item CheapestTimes_Day
+      String s;
+      if (oh_get_string("CheapestTimes_Day", s)) {
+          local.WPTag = s;
+          local.ok = true;
+          any_success_this_cycle = true;
+      }
+      
+      // Heizprogramm der Wärmepumpe für die Nacht
+      if (oh_get_string("CheapestTimes_Night", s)) {
+          local.WPNacht = s;
+          local.ok = true;
+          any_success_this_cycle = true;
+      }
+      
+      // WP Status von Relay2
+      if (oh_get_string("Relay2", s)) {
+          if (s == "ON") {
+              local.WPStatus = "Abgeschaltet";
+          } else if (s == "OFF") {
+              local.WPStatus = "Eingeschaltet";
+          } else {
+              local.WPStatus = s; // Sonstige Zustände direkt übernehmen  
+          }
+          local.ok = true;
+          any_success_this_cycle = true;
+      }
+      
+      // WP Watt
+      if (oh_get_float("WPAktuell", t)) { 
+          local.WPWatt = t; 
+          local.ok = true;
+          any_success_this_cycle = true;
+      }
+      net_yield();
+    }
+
+    net_yield();
+    
+    // Update Erfolgszeit wenn wir wenigstens etwas erhalten haben
+    if (any_success_this_cycle) {
+      last_success_time = millis();
+      Serial.printf("[DataTask] ✓ Cycle %d completed successfully\n", cycle_counter);
     } else {
-        Serial.println("Failed to fetch kwwp");
+      Serial.printf("[DataTask] ✗ Cycle %d: no successful data fetched\n", cycle_counter);
     }
-
-     net_yield();
-      // ---- Übergabe an UI (nur wenn zumindest etwas ok) ----
+    
+    // ---- Übergabe an UI (nur wenn zumindest etwas ok) ----
     taskENTER_CRITICAL(&g_mux);
         g_data = local;
         g_data_ready = local.ok;
     taskEXIT_CRITICAL(&g_mux);
 
-    // Warte 30 Sekunden bis zum nächsten Durchlauf
-    vTaskDelay(pdMS_TO_TICKS(30000));
-}
+    // Warte 10 Sekunden bis zum nächsten Durchlauf
+    vTaskDelay(pdMS_TO_TICKS(10000));
+  }
 }
 
 // ====================== v9: Tick-Callback auf millis (falls nötig) ======================
@@ -527,12 +739,15 @@ void setup() {
   // Chart
   lv_chart_set_point_count(uic_Grafik, 96);
   s_prices = lv_chart_add_series(uic_Grafik, lv_color_hex(0x880404), LV_CHART_AXIS_PRIMARY_Y);
+  s_pricesmorgen = lv_chart_add_series(uic_Grafik, lv_color_hex(0x008800), LV_CHART_AXIS_PRIMARY_Y);
+
   s_power  = lv_chart_add_series(uic_Grafik, lv_color_hex(0x0000FF), LV_CHART_AXIS_SECONDARY_Y);
   
-s_verbrauch = lv_chart_add_series(uic_Grafikverbrauch, lv_color_hex(0xFF0000), LV_CHART_AXIS_PRIMARY_Y); // Rot für Verbrauch
-s_einspeisung = lv_chart_add_series(uic_Grafikverbrauch, lv_color_hex(0x00FF00), LV_CHART_AXIS_PRIMARY_Y); // Grün für Einspeisung
+  s_verbrauch = lv_chart_add_series(uic_Grafikverbrauch, lv_color_hex(0xFF0000), LV_CHART_AXIS_PRIMARY_Y); // Rot für Verbrauch
+  s_einspeisung = lv_chart_add_series(uic_Grafikverbrauch, lv_color_hex(0x00FF00), LV_CHART_AXIS_PRIMARY_Y); // Grün für Einspeisung
 
-  lv_chart_set_ext_y_array(uic_Grafik, s_prices, strompreise_array);
+  lv_chart_set_ext_y_array(uic_Grafik, s_prices, strompreiseHeute_array);
+
   lv_chart_set_ext_y_array(uic_Grafik, s_power,  stromverbrauch_array);
 
     lv_chart_set_ext_y_array(uic_Grafikverbrauch, s_verbrauch, stromverbrauch60min_array);
@@ -576,11 +791,33 @@ void loop() {
     if (ui_lblip) lv_label_set_text(ui_lblip, WiFi.localIP().toString().c_str());
 
     for (int i = 0; i < 96; ++i) {
-      strompreise_array[i] = local.prices15[i];
-      stromverbrauch_array[i] = local.verbrauch15[i];
-      warmwassergrad_array[i] = local.Warmwassergrad_array[i];
-    }
+      strompreiseHeute_array[i] = local.strompreiseHeute[i];
   
+
+      stromverbrauch_array[i] = local.verbrauch15[i];
+    
+
+      // Ermittel Min und Max für den Strompreis
+      if (local.strompreiseHeute[i] > local.strompreisMax) {
+        local.strompreisMax = local.strompreiseHeute[i];
+      }
+
+     
+      if (local.strompreiseHeute[i] < local.strompreisMin) {
+        local.strompreisMin = local.strompreiseHeute[i];
+      }
+
+  
+  
+    }
+
+    // Setze Min und Max für den Strompreis
+    local.strompreisMin = local.strompreisMin == LV_COORD_MIN ? 0 : local.strompreisMin;
+    local.strompreisMax = local.strompreisMax == LV_COORD_MAX ? 0 : local.strompreisMax;
+    lv_chart_set_range(uic_Grafik, LV_CHART_AXIS_PRIMARY_Y, local.strompreisMin, local.strompreisMax);
+
+    lv_chart_refresh(uic_Grafik);
+
     for (int i = 0; i < 60; ++i) {
 
         if (local.verbrauch60min[i] < 0)
